@@ -27,7 +27,7 @@ public class CentralLibScraper {
     public static String queryPretreatment(String paperName) {
         String query = rearrangeAbnormalSubtitle(paperName);
         query = removeBrackets(query);
-        query = ScrapUtil.removeStringToString(query, "<<", ">>");
+        query = ScrapUtil.removeStringToString(query, "≪", "≫");
         query = query.replace("'", " ").replaceAll("[?]", "");
         return query;
     }
@@ -128,12 +128,13 @@ public class CentralLibScraper {
                 closeBtn.click();
             }
 
-
             if (matchedList.size() > 0) break;
         }
 
         if (matchedList.size() == 0) {
             CentralLib noResult = new CentralLib(ORGAN_NAME);
+            noResult.setOriginal(null);
+            noResult.setDigital(null);
             noResult.setRemark("일치하는 검색 결과 없음");
             noResult.setServiceMethod("서비스 이용 불가");
             return noResult;

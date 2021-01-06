@@ -28,7 +28,7 @@ public class CongressScraper {
     public static String queryPretreatment(String paperName) {
         String query = rearrangeAbnormalSubtitle(paperName);
         query = removeBrackets(query);
-        query = ScrapUtil.removeStringToString(query, "<<", ">>");
+        query = ScrapUtil.removeStringToString(query, "≪", "≫");
         query = query.replaceAll("[,?&-]", "");
         return query;
     }
@@ -68,9 +68,11 @@ public class CongressScraper {
             new WebDriverWait(driver, 2)
                     .until(ExpectedConditions.elementToBeClickable(By.cssSelector("ul.list li:nth-child(1) a"))).click();
 
-            WebElement titleSpan = driver.findElementByCssSelector("div.searchDetail div.detailContent dl#DP_TITLE_FULL dd span.iBold");
-            double jaccard = getJaccard(query, titleSpan);
-            if (jaccard < JACCARD_STANDARD) continue;
+            if (!query.equals(controlCode)) {
+                WebElement titleSpan = driver.findElementByCssSelector("div.searchDetail div.detailContent dl#DP_TITLE_FULL dd span.iBold");
+                double jaccard = getJaccard(query, titleSpan);
+                if (jaccard < JACCARD_STANDARD) continue;
+            }
 
             Congress congress = new Congress(ORGAN_NAME);
             congress.setControlCode(controlCode);
@@ -117,6 +119,8 @@ public class CongressScraper {
             notExist.setServiceMethod("서비스 제공 불가");
             notExist.setControlCode(controlCode);
             notExist.setRemark("검색 결과 없음");
+            notExist.setDigital(null);
+            notExist.setOriginal(null);
             return Pair.create(notExist, new CommonInfo());
         }
 
@@ -142,6 +146,7 @@ public class CongressScraper {
 
     private static String getProfessor(WebElement dd) {
         String text = dd.getText().trim();
+        if (text.contains("\n")) text = text.split("\n")[0];
         String[] split = text.split(":");
         return split[1].trim();
     }

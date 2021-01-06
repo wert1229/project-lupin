@@ -111,4 +111,9 @@ public class ScrapUtil {
     public static boolean isExist(List<WebElement> elements) {
         return !elements.isEmpty();
     }
+
+    public static String getExcelValue(Boolean bool) {
+        if (bool == null) return "";
+        else return bool ? "O" : "X";
+    }
 }

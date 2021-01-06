@@ -4,8 +4,8 @@ public class CentralLib {
     private String organName;
     private String query;
     private double jaccard;
-    private boolean isDigital;
-    private boolean isOriginal;
+    private Boolean isDigital;
+    private Boolean isOriginal;
     private String digitalUrl;
     private String claimCode;
     private String serviceMethod;
@@ -13,6 +13,8 @@ public class CentralLib {
 
     public CentralLib(String organName) {
         this.organName = organName;
+        this.isDigital = false;
+        this.isOriginal = false;
     }
 
     public String getRemark() {
@@ -35,12 +37,20 @@ public class CentralLib {
         return jaccard;
     }
 
-    public boolean isDigital() {
+    public Boolean getDigital() {
         return isDigital;
     }
 
-    public boolean isOriginal() {
+    public void setDigital(Boolean digital) {
+        isDigital = digital;
+    }
+
+    public Boolean getOriginal() {
         return isOriginal;
+    }
+
+    public void setOriginal(Boolean original) {
+        isOriginal = original;
     }
 
     public String getDigitalUrl() {
@@ -65,14 +75,6 @@ public class CentralLib {
 
     public void setJaccard(double jaccard) {
         this.jaccard = jaccard;
-    }
-
-    public void setDigital(boolean digital) {
-        this.isDigital = digital;
-    }
-
-    public void setOriginal(boolean original) {
-        this.isOriginal = original;
     }
 
     public void setDigitalUrl(String digitalUrl) {

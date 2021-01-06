@@ -33,7 +33,7 @@ public class KerisScraper {
     public static String queryPretreatment(String paperName) {
         String query = rearrangeAbnormalSubtitle(paperName);
         query = removeBrackets(query);
-        query = ScrapUtil.removeStringToString(query, "<<", ">>");
+        query = ScrapUtil.removeStringToString(query, "≪", "≫");
         query = query.replaceAll("[,?&-]", "");
         return query;
     }
@@ -131,7 +131,7 @@ public class KerisScraper {
         String urlParam = params.stream()
                 .map((param) ->
                         param + "=" + form.findElement(By.ByCssSelector.cssSelector(String.format("input[name='%s']", param)))
-                                .getAttribute("name"))
+                                .getAttribute("value"))
                 .collect(Collectors.joining("&"));
 
         return baseUrl + urlParam;
@@ -213,7 +213,7 @@ public class KerisScraper {
                     String text = info.findElement(By.ByCssSelector.cssSelector("div p")).getText();
                     String[] split = text.split("\n");
                     for (String s : split) {
-                        if (s.contains("지도"))
+                        if (s.contains("지도") && s.split(":").length > 1)
                             commonInfo.setProfessor(s.split(":")[1]);
                     }
                 }
@@ -246,6 +246,7 @@ public class KerisScraper {
         Keris keris = new Keris(ORGAN_NAME);
         keris.setServiceMethod("서비스 제공 불가");
         keris.setRemark("일치하는 검색 결과 없음");
+        keris.setDigital(null);
         return keris;
     }
 }

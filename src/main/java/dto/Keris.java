@@ -4,13 +4,14 @@ public class Keris {
     private String organName;
     private String query;
     private double jaccard;
-    private boolean isDigital;
+    private Boolean isDigital;
     private String digitalUrl;
     private String serviceMethod;
     private String remark;
 
     public Keris(String organName) {
         this.organName = organName;
+        this.isDigital = false;
     }
 
     public String getRemark() {
@@ -45,12 +46,12 @@ public class Keris {
         this.jaccard = jaccard;
     }
 
-    public boolean isDigital() {
+    public Boolean getDigital() {
         return isDigital;
     }
 
-    public void setDigital(boolean digital) {
-        this.isDigital = digital;
+    public void setDigital(Boolean digital) {
+        isDigital = digital;
     }
 
     public String getDigitalUrl() {

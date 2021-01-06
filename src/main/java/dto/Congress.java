@@ -2,8 +2,8 @@ package dto;
 
 public class Congress {
     private String organName;
-    private boolean isDigital;
-    private boolean isOriginal;
+    private Boolean isDigital;
+    private Boolean isOriginal;
     private String digitalUrl;
     private String claimCode;
     private String controlCode;
@@ -12,6 +12,8 @@ public class Congress {
 
     public Congress(String organName) {
         this.organName = organName;
+        this.isDigital = false;
+        this.isOriginal = false;
     }
 
     public String getOrganName() {
@@ -22,20 +24,20 @@ public class Congress {
         this.organName = organName;
     }
 
-    public boolean isDigital() {
+    public Boolean getDigital() {
         return isDigital;
     }
 
-    public void setDigital(boolean digital) {
-        this.isDigital = digital;
+    public void setDigital(Boolean digital) {
+        isDigital = digital;
     }
 
-    public boolean isOriginal() {
+    public Boolean getOriginal() {
         return isOriginal;
     }
 
-    public void setOriginal(boolean original) {
-        this.isOriginal = original;
+    public void setOriginal(Boolean original) {
+        isOriginal = original;
     }
 
     public String getDigitalUrl() {
