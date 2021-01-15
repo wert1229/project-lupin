@@ -31,11 +31,15 @@ public class ScrapUtil {
         while (builder.indexOf(char1) != -1) {
             int start = builder.indexOf(char1);
             int end = builder.indexOf(char2);
-            String s = builder.substring(0, start) + builder.substring(end + 1, builder.length());
+            String s = builder.substring(0, start) + builder.substring(end + char2.length(), builder.length());
             builder = new StringBuilder(s);
         }
 
         return builder.toString().trim();
+    }
+
+    public static String removeAllSpecialChar(String query) {
+        return query.replaceAll("[^一-龥ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z0-9 ]", " ");
     }
 
     public static List<String> getSplitQueries(String query) {
@@ -115,5 +119,9 @@ public class ScrapUtil {
     public static String getExcelValue(Boolean bool) {
         if (bool == null) return "";
         else return bool ? "O" : "X";
+    }
+
+    public static String removeQuotes(String str) {
+        return str.replaceAll("['\"‘’”“·《≪≫》]", "");
     }
 }

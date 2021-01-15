@@ -9,13 +9,12 @@ import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import util.ScrapUtil;
-import util.Selenium;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static util.ScrapUtil.rearrangeAbnormalSubtitle;
-import static util.ScrapUtil.removeBrackets;
+import static util.ScrapUtil.*;
+import static util.ScrapUtil.jaccard;
 
 public class KerisScraper {
 
@@ -32,28 +31,30 @@ public class KerisScraper {
 
     public static String queryPretreatment(String paperName) {
         String query = rearrangeAbnormalSubtitle(paperName);
-        query = removeBrackets(query);
-        query = ScrapUtil.removeStringToString(query, "≪", "≫");
-        query = query.replaceAll("[,?&-]", "");
+//        query = removeBrackets(query);
+//        query = ScrapUtil.removeStringToString(query, "≪", "≫");
+//        query = query.replaceAll("[,?&-]", "");
         return query;
     }
 
-    public static Pair<Keris, CommonInfo> scrap(ChromeDriver driver, String paperName, String college) {
-        Queue<String> queryQueue = new ArrayDeque<>();
-        queryQueue.add(paperName.trim());
+    public static Pair<Keris, CommonInfo> scrap(ChromeDriver driver, String originPaperName, String congressPaperName, String author) {
+        String paperName = congressPaperName != null ? congressPaperName : originPaperName;
+        List<String> queryList = new ArrayList<>();
+        if (congressPaperName != null)
+            queryList.add(rearrangeAbnormalSubtitle(originPaperName));
+
+        queryList.add(rearrangeAbnormalSubtitle(paperName.trim()));
 
         String trimmedQuery = queryPretreatment(paperName);
-        queryQueue.add(trimmedQuery);
+        queryList.add(trimmedQuery);
 
-        addSubtitleAndSubLang(queryQueue, trimmedQuery);
+        addSubtitleAndSubLang(queryList, trimmedQuery);
 
         List<Pair<Keris, CommonInfo>> matchedList = new ArrayList<>();
 
-        while (!queryQueue.isEmpty()) {
-            String query = queryQueue.poll();
-
+        for (String query : queryList) {
             try {
-                driver.get(KERIS_URL + query.replace(":", ""));
+                driver.get(KERIS_URL + ScrapUtil.removeAllSpecialChar(query));
             } catch (WebDriverException e) {
                 Keris keris = new Keris(ORGAN_NAME);
                 keris.setRemark("크롤링 라이브러리 연결 실패");
@@ -65,22 +66,28 @@ public class KerisScraper {
             if (ScrapUtil.isExist(noResult)) continue;
 
             List<WebElement> rows = driver.findElementsByCssSelector("div.contentInner div.srchResultListW div.cont");
-            rows = rows.subList(0, Math.min(rows.size(), 1));
+            rows = rows.subList(0, Math.min(rows.size(), 3));
 
+            List<String> rowLinks = new ArrayList<>();
             for (WebElement row : rows) {
                 WebElement title = row.findElement(By.ByCssSelector.cssSelector("p.title a"));
-                title.click();
+                String href = title.getAttribute("href");
+                rowLinks.add(href);
+            }
 
-                // 대학, 유사도 검사
-                WebElement publishElement = new WebDriverWait(driver, 30)
-                        .until(ExpectedConditions.elementToBeClickable(By.ByCssSelector.cssSelector("div.thesisInfo div.infoDetailL ul li:nth-child(2) div p")));
+            for (String link : rowLinks) {
+                driver.navigate().to(link);
 
-                if (!isSameCollege(college, publishElement)) continue;
+                // 저자, 제목 유사도 검사
+                WebElement authorElement = new WebDriverWait(driver, 20)
+                            .until(ExpectedConditions.elementToBeClickable(By.ByCssSelector.cssSelector("div.thesisInfo div.infoDetailL ul li:nth-child(1) div p .instituteInfo")));
+
+                boolean isSameAuthor = isSameAuthor(author, authorElement);
 
                 WebElement titleElement = driver.findElementByCssSelector("div.thesisInfo div.thesisInfoTop h3");
 
-                double jaccard = getJaccard(query, titleElement);
-                if (jaccard < JACCARD_STANDARD) continue;
+                double jaccard = getJaccard(ScrapUtil.removeQuotes(query), ScrapUtil.removeQuotes(titleElement.getText().trim()));
+                if ((isSameAuthor && jaccard < JACCARD_STANDARD) || (!isSameAuthor && jaccard < 0.7)) continue;
 
                 Keris keris = new Keris(ORGAN_NAME);
                 keris.setQuery(query);
@@ -92,7 +99,6 @@ public class KerisScraper {
                     if (btns.get(0).getText().contains("원문")) {
                         WebElement hiddenForm = driver.findElementByCssSelector("form#f");
 
-//                        keris.setDigital(true);
                         keris.setServiceMethod("원문을 url 연계하여 제공");
                         keris.setDigitalUrl(digitalUrl(hiddenForm));
                     } else {
@@ -101,6 +107,8 @@ public class KerisScraper {
                         List<WebElement> exception = driver.findElementsByCssSelector("div.thesisInfo ul li.on span font");
                         if (ScrapUtil.isExist(exception))
                             keris.setServiceMethod(exception.get(0).getText());
+                        else
+                            keris.setServiceMethod("이용자 신청 후 이용 가능");
                     }
                 } else {
                     keris.setDigital(false);
@@ -137,51 +145,70 @@ public class KerisScraper {
         return baseUrl + urlParam;
     }
 
-    private static double getJaccard(String query, WebElement titleElement) {
-        String text = titleElement.getText().trim();
+    private static double getJaccard(String query, String text) {
+        double result = 0.0;
 
-        double fullMatch = ScrapUtil.jaccard(query, text);
-        if (fullMatch > JACCARD_STANDARD) return fullMatch;
+        double fullMatch = jaccard(query, text);
+        result = Math.max(result, fullMatch);
+        if (result > 0.9) return result;
 
-        if (!query.contains("=") && text.contains("=")) {
-            double withoutSubLang = ScrapUtil.jaccard(query, text.split("=")[0]);
-            if (withoutSubLang > JACCARD_STANDARD) return withoutSubLang;
+        if (query.contains("=") && text.contains("=")) {
+            String[] split = text.split("=");
+            double withoutSubLang = jaccard(query.split("=")[0], split[0]);
+            double subLang = jaccard(query.split("=")[1], split.length > 1 ? split[1] : text);
+            result = Math.max(result, Math.max(withoutSubLang, subLang));
+            if (result > 0.9) return result;
         }
 
         if (!query.contains("=") && text.contains("=")) {
-            double subLang = ScrapUtil.jaccard(query, text.split("=")[1]);
-            if (subLang > JACCARD_STANDARD) return subLang;
+            String[] split = text.split("=");
+            double withoutSubLang = jaccard(query, split[0]);
+            double subLang = jaccard(query, split.length > 1 ? split[1] : text);
+            result = Math.max(result, Math.max(withoutSubLang, subLang));
+            if (result > 0.9) return result;
+        }
+
+        if (query.contains("=") && !text.contains("=")) {
+            double withoutSubLang = jaccard(query.split("=")[0], text);
+            double subLang = jaccard(query.split("=")[1], text);
+            result = Math.max(result, Math.max(withoutSubLang, subLang));
+            if (result > 0.9) return result;
         }
 
         if (!query.contains(":") && text.contains(":")) {
-            double withoutSubtitle = ScrapUtil.jaccard(query, text.split(":")[0]);
-            if (withoutSubtitle > JACCARD_STANDARD) return withoutSubtitle;
+            double withoutSubtitle = jaccard(query, text.split(":")[0]);
+            result = Math.max(result, withoutSubtitle);
+            if (result > 0.9) return result;
         }
 
-        return 0;
+        if (query.contains(":") && !text.contains(":")) {
+            double withoutSubtitle = jaccard(query.split(":")[0], text);
+            result = Math.max(result, withoutSubtitle);
+            if (result > 0.9) return result;
+        }
+
+        return result;
     }
 
-    private static boolean isSameCollege(String college, WebElement publishInfo) {
-        String text = publishInfo.getText();
-        String[] split = text.split(":");
-        String[] split1 = split[1].split(",");
-        return ScrapUtil.jaccard(college, split1[0].trim()) > 0.8;
+    private static boolean isSameAuthor(String author, WebElement publishInfo) {
+        String text = publishInfo.getText().trim();
+        return text.toLowerCase().equals(author.trim().toLowerCase());
     }
 
-    private static void addSubtitleAndSubLang(Queue<String> queue, String query) {
+    private static void addSubtitleAndSubLang(List<String> list, String query) {
         if (query.contains("=")) {
             String[] split = query.split("=");
             String originLang = split[0].trim();
             String subLang = split[1].trim();
-            queue.add(originLang);
-            queue.add(subLang);
+            list.add(0, originLang);
+            list.add(subLang);
             if (originLang.contains(":"))
-                queue.add(originLang.split(":")[0].trim());
+                list.add(1, originLang.split(":")[0].trim());
             if (subLang.contains(":"))
-                queue.add(originLang.split(":")[0].trim());
+                list.add(subLang.split(":")[0].trim());
         } else {
             if (query.contains(":"))
-                queue.add(query.split(":")[0].trim());
+                list.add(query.split(":")[0].trim());
         }
     }
 
@@ -192,16 +219,25 @@ public class KerisScraper {
                 String column = info.findElement(By.ByCssSelector.cssSelector("span.strong")).getAttribute("innerHTML");
                 if (column.contains("형태")) {
                     String shape = info.findElement(By.ByCssSelector.cssSelector("div p")).getText();
-                    String[] shapes = shape.split(";");
-                    if (shapes.length < 2) {
-                        if (shapes[0].contains("cm")) {
-                            commonInfo.setSize(shapes[0]);
+                    if (shape.contains(";")) {
+                        String[] shapes = shape.split(";");
+                        if (shapes.length < 2) {
+                            if (shapes[0].contains("cm")) {
+                                commonInfo.setSize(shapes[0]);
+                            } else {
+                                commonInfo.setPage(shapes[0]);
+                            }
                         } else {
-                            commonInfo.setPage(shapes[0]);
+                            String page = shapes[0].trim();
+                            if (!page.equals("") && !page.contains("p"))
+                                page += " p.";
+                            commonInfo.setPage(page);
+                            commonInfo.setSize(shapes[1]);
                         }
-                    } else {
-                        commonInfo.setPage(shapes[0]);
-                        commonInfo.setSize(shapes[1]);
+                    } else if (shape.contains("p.")) {
+                        String[] shapes = shape.split("p.");
+                        commonInfo.setPage(shapes[0].trim() + " p.");
+                        commonInfo.setSize(shapes[1].trim());
                     }
                 } else if (column.contains("학위논문")) {
                     String text = info.findElement(By.ByCssSelector.cssSelector("div p")).getText();
@@ -226,20 +262,31 @@ public class KerisScraper {
         if (!text.contains("--")) return "";
         String[] split = text.split("--");
         String data = split[1];
-        if (!data.contains(":")) return "";
-        String[] split2 = data.split(":");
-        String[] split3 = split2[1].trim().split(" ");
-        return  split3[0].trim();
+        if (data.contains(":")) {
+            String[] split2 = data.split(":");
+            String[] split3 = split2[1].trim().split(" ");
+            return split3[0].trim();
+        } else {
+            return data;
+        }
     }
 
     private static String extractDegree(String text) {
         if (!text.contains("--")) return "";
         String[] split = text.split("--");
         String data = split[0];
-        if (!data.contains("(")) return "";
-        int start = data.indexOf("(");
-        int end = data.indexOf(")");
-        return data.substring(start + 1, end);
+        if (data.contains("(")) {
+            int start = data.indexOf("(");
+            int end = data.indexOf(")");
+            return data.substring(start + 1, end);
+        } else if (data.contains("[")) {
+            int start = data.indexOf("[");
+            int end = data.indexOf("]");
+            return data.substring(start + 1, end);
+        } else {
+            return "";
+        }
+
     }
 
     private static Keris getFailObject() {

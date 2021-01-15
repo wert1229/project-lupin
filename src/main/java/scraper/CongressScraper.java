@@ -11,10 +11,8 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import util.ScrapUtil;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Queue;
 
 import static util.ScrapUtil.rearrangeAbnormalSubtitle;
 import static util.ScrapUtil.removeBrackets;
@@ -35,20 +33,18 @@ public class CongressScraper {
 
     public static Pair<Congress, CommonInfo> scrap(ChromeDriver driver, String controlCode, String paperName) {
         if (controlCode == null || controlCode.equals("")) return null;
-        Queue<String> queryQueue = new ArrayDeque<>();
-        queryQueue.add(controlCode);
-        queryQueue.add(paperName.trim());
+        List<String> queryList = new ArrayList<>();
+        queryList.add(controlCode);
+        queryList.add(paperName.trim());
 
         String trimmedQuery = queryPretreatment(paperName);
-        queryQueue.add(trimmedQuery);
+        queryList.add(trimmedQuery);
 
-        addSubtitleAndSubLang(queryQueue, trimmedQuery);
+        addSubtitleAndSubLang(queryList, trimmedQuery);
 
         List<Pair<Congress, CommonInfo>> matchedList = new ArrayList<>();
 
-        while (!queryQueue.isEmpty()) {
-            String query = queryQueue.poll();
-
+        for (String query : queryList) {
             try {
                 driver.get(CONGRESS_URL);
             } catch (WebDriverException e) {
@@ -65,11 +61,12 @@ public class CongressScraper {
 
             if (ScrapUtil.isExist(driver.findElementsByCssSelector("li.none"))) continue;
 
-            new WebDriverWait(driver, 2)
+            new WebDriverWait(driver, 3)
                     .until(ExpectedConditions.elementToBeClickable(By.cssSelector("ul.list li:nth-child(1) a"))).click();
 
+            WebElement titleSpan = driver.findElementByCssSelector("div.searchDetail div.detailContent dl#DP_TITLE_FULL dd span.iBold");
+
             if (!query.equals(controlCode)) {
-                WebElement titleSpan = driver.findElementByCssSelector("div.searchDetail div.detailContent dl#DP_TITLE_FULL dd span.iBold");
                 double jaccard = getJaccard(query, titleSpan);
                 if (jaccard < JACCARD_STANDARD) continue;
             }
@@ -85,9 +82,15 @@ public class CongressScraper {
                 congress.setDigital(false);
             }
 
-            WebElement location = driver.findElementByCssSelector("div.searchDetail div.detailContent dl#DP_LOCATION dd");
-            congress.setOriginal(!location.getText().contains("전자"));
-            congress.setServiceMethod(location.getText());
+            List<WebElement> location = driver.findElementsByCssSelector("div.searchDetail div.detailContent dl#DP_LOCATION dd");
+
+            if (ScrapUtil.isExist(location)) {
+                congress.setOriginal(!location.get(0).getText().contains("전자"));
+                congress.setServiceMethod(location.get(0).getText());
+            } else {
+                congress.setOriginal(false);
+                congress.setServiceMethod("전자자료");
+            }
 
             if (isNeedMOU(driver)) {
                 congress.setServiceMethod("협정기관 이용자 서비스 이용 가능/" + congress.getServiceMethod());
@@ -127,20 +130,20 @@ public class CongressScraper {
         return matchedList.get(0);
     }
 
-    private static void addSubtitleAndSubLang(Queue<String> queue, String query) {
+    private static void addSubtitleAndSubLang(List<String> list, String query) {
         if (query.contains("=")) {
             String[] split = query.split("=");
             String originLang = split[0].trim();
             String subLang = split[1].trim();
-            queue.add(originLang);
-            queue.add(subLang);
+            list.add(originLang);
+            list.add(subLang);
             if (originLang.contains(":"))
-                queue.add(originLang.split(":")[0].trim());
+                list.add(originLang.split(":")[0].trim());
             if (subLang.contains(":"))
-                queue.add(originLang.split(":")[0].trim());
+                list.add(originLang.split(":")[0].trim());
         } else {
             if (query.contains(":"))
-                queue.add(query.split(":")[0].trim());
+                list.add(query.split(":")[0].trim());
         }
     }
 
@@ -175,7 +178,8 @@ public class CongressScraper {
     }
 
     private static String trimFullTitle(WebElement span) {
-        String fullTitle = span.getAttribute("innerHTML");
+        String fullTitle = span.getText();
+        if (fullTitle.contains("</a>")) fullTitle = ScrapUtil.removeStringToString(fullTitle, "<a", "</a>");
         if (fullTitle.contains("/")) fullTitle = fullTitle.substring(0, fullTitle.lastIndexOf("/"));
         if (fullTitle.contains("[")) fullTitle = ScrapUtil.removeBigBrackets(fullTitle);
         return fullTitle.trim();
@@ -190,7 +194,7 @@ public class CongressScraper {
     }
 
     private static double getJaccard(String query, WebElement titleElement) {
-        String text = titleElement.getAttribute("innerHTML");
+        String text = titleElement.getText();
         text = text.substring(0, text.lastIndexOf("/"));
 
         double fullMatch = ScrapUtil.jaccard(query, text);

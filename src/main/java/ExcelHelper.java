@@ -14,6 +14,7 @@ public class ExcelHelper {
     public static final int EXCEL_HEADER_OFFSET = 2;
     public static final String INTEGRATION_FILE_NAME = "integration.xlsx";
     public static final String COMPARE_FILE_NAME = "compare.xlsx";
+    private CellStyle emptyHighlight;
 
     public Workbook getExcelData(String fileName) {
         InputStream is = getClass().getResourceAsStream(fileName);
@@ -69,20 +70,20 @@ public class ExcelHelper {
         row.createCell(17).setCellValue(getCellValue(originRow.getCell(14)));
         row.createCell(18).setCellValue(getCellValue(compRow.getCell(10)));
         row.createCell(19).setCellValue(getCellValue(originRow.getCell(18)));
-        row.createCell(20).setCellValue(getCellValue(compRow.getCell(13)));
+        row.createCell(20).setCellValue(getCellValue(compRow.getCell(14)));
 
         row.createCell(21).setCellValue(getCellValue(originRow.getCell(19)));
         row.createCell(22).setCellValue(getCellValue(originRow.getCell(20)));
-        row.createCell(23).setCellValue(getCellValue(compRow.getCell(15)));
+        row.createCell(23).setCellValue(getCellValue(compRow.getCell(16)));
         row.createCell(24).setCellValue(getCellValue(originRow.getCell(21)));
-        row.createCell(25).setCellValue(getCellValue(compRow.getCell(16)));
+        row.createCell(25).setCellValue(getCellValue(compRow.getCell(17)));
         row.createCell(26).setCellValue(getCellValue(originRow.getCell(22)));
-        row.createCell(27).setCellValue(getCellValue(compRow.getCell(17)));
+        row.createCell(27).setCellValue(getCellValue(compRow.getCell(18)));
         row.createCell(28).setCellValue(getCellValue(originRow.getCell(23)));
-        row.createCell(29).setCellValue(getCellValue(compRow.getCell(18)));
+        row.createCell(29).setCellValue(getCellValue(compRow.getCell(19)));
         row.createCell(30).setCellValue(getCellValue(originRow.getCell(24)));
-        row.createCell(31).setCellValue(getCellValue(compRow.getCell(19)));
-        row.createCell(32).setCellValue(getCellValue(compRow.getCell(20)));
+        row.createCell(31).setCellValue(getCellValue(compRow.getCell(20)));
+        row.createCell(32).setCellValue(getCellValue(compRow.getCell(25)));
 
         row.createCell(33).setCellValue(getCellValue(originRow.getCell(25)));
         row.createCell(34).setCellValue(getCellValue(originRow.getCell(26)));
@@ -91,7 +92,7 @@ public class ExcelHelper {
         row.createCell(37).setCellValue(getCellValue(compRow.getCell(23)));
         row.createCell(38).setCellValue(getCellValue(originRow.getCell(28)));
         row.createCell(39).setCellValue(getCellValue(compRow.getCell(24)));
-        row.createCell(40).setCellValue(getCellValue(compRow.getCell(25)));
+        row.createCell(40).setCellValue(getCellValue(compRow.getCell(26)));
     }
 
     private String getCellValue(Cell cell) {
@@ -106,6 +107,7 @@ public class ExcelHelper {
         Workbook integration = new XSSFWorkbook();
         Sheet sheet = integration.createSheet("시트1");
         createExcelHeaders(sheet);
+        createEmptyStyle(integration);
 
         int bundleCount = (endRowNum - startRowNum + 1) / bundleSize;
         if ((endRowNum - startRowNum + 1) % bundleSize != 0)
@@ -119,8 +121,16 @@ public class ExcelHelper {
         saveExcel(integration, INTEGRATION_FILE_NAME);
     }
 
+    private void createEmptyStyle(Workbook excel) {
+        CellStyle emptyHighlight = excel.createCellStyle();
+        emptyHighlight.setFillForegroundColor(IndexedColors.LIGHT_YELLOW.getIndex());
+        emptyHighlight.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        this.emptyHighlight = emptyHighlight;
+    }
+
     private void appendExcelData(Sheet baseSheet, Workbook excel) {
         Sheet addSheet = excel.getSheetAt(0);
+
         int addCount = addSheet.getPhysicalNumberOfRows();
         int integrationCount = baseSheet.getPhysicalNumberOfRows();
 
@@ -133,11 +143,15 @@ public class ExcelHelper {
     private void appendRow(Sheet baseSheet, int index, Row addRow) {
         Row row = baseSheet.createRow(index);
 
+        if (addRow == null) return;
         for (Cell cell : addRow) {
             if (cell.getCellType() == CellType.NUMERIC) {
                 row.createCell(row.getPhysicalNumberOfCells()).setCellValue(cell.getNumericCellValue());
             } else {
-                row.createCell(row.getPhysicalNumberOfCells()).setCellValue(cell.getStringCellValue());
+                Cell newCell = row.createCell(row.getPhysicalNumberOfCells());
+                newCell.setCellValue(cell.getStringCellValue());
+                if (newCell.getColumnIndex() <= 6 && (cell.getStringCellValue() == null || cell.getStringCellValue().equals("")))
+                    newCell.setCellStyle(this.emptyHighlight);
             }
         }
     }
@@ -214,12 +228,12 @@ public class ExcelHelper {
         Row header = sheet.createRow(0);
         header.createCell(2).setCellValue("서지사항");
         header.createCell(7).setCellValue("소장사항1 (국회도서관)");
-        header.createCell(14).setCellValue("소장사항2 (국립중앙도서관)");
+        header.createCell(15).setCellValue("소장사항2 (국립중앙도서관)");
         header.createCell(21).setCellValue("소장사항3 (KERIS)");
 
         CellRangeAddress common = new CellRangeAddress(0, 0, 2, 6);
-        CellRangeAddress congress = new CellRangeAddress(0, 0, 7, 13);
-        CellRangeAddress centralLib = new CellRangeAddress(0, 0, 14, 20);
+        CellRangeAddress congress = new CellRangeAddress(0, 0, 7, 14);
+        CellRangeAddress centralLib = new CellRangeAddress(0, 0, 15, 20);
         CellRangeAddress keris = new CellRangeAddress(0, 0, 21, 25);
         sheet.addMergedRegion(common);
         sheet.addMergedRegion(congress);
@@ -242,21 +256,23 @@ public class ExcelHelper {
         subHeader.createCell(10).setCellValue("서비스형태");
         subHeader.createCell(11).setCellValue("청구기호");
         subHeader.createCell(12).setCellValue("제어번호");
-        subHeader.createCell(13).setCellValue("원문URL");
+        subHeader.createCell(13).setCellValue("등록번호");
+        subHeader.createCell(14).setCellValue("원문URL");
 
-        subHeader.createCell(14).setCellValue("소장처");
-        subHeader.createCell(15).setCellValue("원문소장");
-        subHeader.createCell(16).setCellValue("실물소장");
-        subHeader.createCell(17).setCellValue("서비스형태");
-        subHeader.createCell(18).setCellValue("청구기호");
-        subHeader.createCell(19).setCellValue("원문URL");
-        subHeader.createCell(20).setCellValue("유사도");
+        subHeader.createCell(15).setCellValue("소장처");
+        subHeader.createCell(16).setCellValue("원문소장");
+        subHeader.createCell(17).setCellValue("실물소장");
+        subHeader.createCell(18).setCellValue("서비스형태");
+        subHeader.createCell(19).setCellValue("청구기호");
+        subHeader.createCell(20).setCellValue("원문URL");
 
         subHeader.createCell(21).setCellValue("소장처");
         subHeader.createCell(22).setCellValue("원문소장");
         subHeader.createCell(23).setCellValue("서비스형태");
         subHeader.createCell(24).setCellValue("원문URL");
-        subHeader.createCell(25).setCellValue("유사도");
+
+        subHeader.createCell(25).setCellValue("중도 유사도");
+        subHeader.createCell(26).setCellValue("RISS 유사도");
     }
 
     public void saveExcel(Workbook result, String fileName) throws IOException {
@@ -283,20 +299,22 @@ public class ExcelHelper {
         row.createCell(10).setCellValue(paper.getCongress().getServiceMethod());
         row.createCell(11).setCellValue(paper.getCongress().getClaimCode());
         row.createCell(12).setCellValue(paper.getCongress().getControlCode());
-        row.createCell(13).setCellValue(paper.getCongress().getDigitalUrl());
+        row.createCell(13).setCellValue(paper.getCongress().getRegisterCode());
+        row.createCell(14).setCellValue(paper.getCongress().getDigitalUrl());
 
-        row.createCell(14).setCellValue(paper.getCentralLib().getOrganName());
-        row.createCell(15).setCellValue(ScrapUtil.getExcelValue(paper.getCentralLib().getDigital()));
-        row.createCell(16).setCellValue(ScrapUtil.getExcelValue(paper.getCentralLib().getOriginal()));
-        row.createCell(17).setCellValue(paper.getCentralLib().getServiceMethod());
-        row.createCell(18).setCellValue(paper.getCentralLib().getClaimCode());
-        row.createCell(19).setCellValue(paper.getCentralLib().getDigitalUrl());
-        row.createCell(20).setCellValue(paper.getCentralLib().getJaccard());
+        row.createCell(15).setCellValue(paper.getCentralLib().getOrganName());
+        row.createCell(16).setCellValue(ScrapUtil.getExcelValue(paper.getCentralLib().getDigital()));
+        row.createCell(17).setCellValue(ScrapUtil.getExcelValue(paper.getCentralLib().getOriginal()));
+        row.createCell(18).setCellValue(paper.getCentralLib().getServiceMethod());
+        row.createCell(19).setCellValue(paper.getCentralLib().getClaimCode());
+        row.createCell(20).setCellValue(paper.getCentralLib().getDigitalUrl());
 
         row.createCell(21).setCellValue(paper.getKeris().getOrganName());
         row.createCell(22).setCellValue(ScrapUtil.getExcelValue((paper.getKeris().getDigital())));
         row.createCell(23).setCellValue(paper.getKeris().getServiceMethod());
         row.createCell(24).setCellValue(paper.getKeris().getDigitalUrl());
-        row.createCell(25).setCellValue(paper.getKeris().getJaccard());
+
+        row.createCell(25).setCellValue(paper.getCentralLib().getJaccard());
+        row.createCell(26).setCellValue(paper.getKeris().getJaccard());
     }
 }

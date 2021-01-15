@@ -24,7 +24,7 @@ public class Selenium {
         ChromeOptions options = new ChromeOptions();
         ChromeDriver driver = new ChromeDriver(options);
         driver.manage().window().maximize();
-        driver.manage().timeouts().pageLoadTimeout(400, TimeUnit.SECONDS).implicitlyWait(3, TimeUnit.SECONDS);
+        driver.manage().timeouts().pageLoadTimeout(400, TimeUnit.SECONDS).implicitlyWait(2, TimeUnit.SECONDS);
         return driver;
     }
 

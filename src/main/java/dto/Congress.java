@@ -7,6 +7,7 @@ public class Congress {
     private String digitalUrl;
     private String claimCode;
     private String controlCode;
+    private String registerCode;
     private String serviceMethod;
     private String remark;
 
@@ -78,5 +79,13 @@ public class Congress {
 
     public void setControlCode(String controlCode) {
         this.controlCode = controlCode;
+    }
+
+    public String getRegisterCode() {
+        return registerCode;
+    }
+
+    public void setRegisterCode(String registerCode) {
+        this.registerCode = registerCode;
     }
 }
