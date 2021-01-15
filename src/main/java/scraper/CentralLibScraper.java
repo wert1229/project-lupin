@@ -43,7 +43,7 @@ public class CentralLibScraper {
         return builder.toString();
     }
 
-    public static CentralLib scrap(ChromeDriver driver, String originPaperName, String congressPaperName) {
+    public static CentralLib scrap(ChromeDriver driver, String originPaperName, String congressPaperName, String excelAuthor) {
         String paperName = congressPaperName != null ? congressPaperName : originPaperName;
         List<String> queryList = new ArrayList<>();
         if (congressPaperName != null)
@@ -118,7 +118,12 @@ public class CentralLibScraper {
                 centralLib.setJaccard(jaccard);
 
                 List<WebElement> tableInfos = driver.findElementsByCssSelector("div.table div.table_row span.cont");
+                String author = tableInfos.size() > 3 ? tableInfos.get(3).getAttribute("innerHTML").trim() : "";
                 String claimCode = tableInfos.size() > 6 ? tableInfos.get(6).getAttribute("innerHTML").trim() : "";
+
+                if (!author.trim().equals(excelAuthor.trim())) {
+                    centralLib.setAuthorDiff(excelAuthor + " = " + author);
+                }
 
                 if (!claimCode.equals("")) {
                     centralLib.setOriginal(true);
@@ -128,7 +133,7 @@ public class CentralLibScraper {
                 }
 
                 List<WebElement> digitalBtn = row.findElements(By.ByCssSelector.cssSelector("span.row_btn_wrap a"));
-                if (isExist(digitalBtn) ) { //&& digitalBtn.get(0).getText().contains("온라인")) {
+                if (isExist(digitalBtn) ) {
                     centralLib.setDigital(true);
                     centralLib.setDigitalUrl(driver.getCurrentUrl());
                     if (!isDigitalMethodAdded) {

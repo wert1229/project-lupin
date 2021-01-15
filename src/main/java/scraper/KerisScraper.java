@@ -30,14 +30,10 @@ public class KerisScraper {
     public static final double JACCARD_STANDARD = 0.60;
 
     public static String queryPretreatment(String paperName) {
-        String query = rearrangeAbnormalSubtitle(paperName);
-//        query = removeBrackets(query);
-//        query = ScrapUtil.removeStringToString(query, "≪", "≫");
-//        query = query.replaceAll("[,?&-]", "");
-        return query;
+        return rearrangeAbnormalSubtitle(paperName);
     }
 
-    public static Pair<Keris, CommonInfo> scrap(ChromeDriver driver, String originPaperName, String congressPaperName, String author) {
+    public static Pair<Keris, CommonInfo> scrap(ChromeDriver driver, String originPaperName, String congressPaperName, String excelAuthor) {
         String paperName = congressPaperName != null ? congressPaperName : originPaperName;
         List<String> queryList = new ArrayList<>();
         if (congressPaperName != null)
@@ -81,8 +77,8 @@ public class KerisScraper {
                 // 저자, 제목 유사도 검사
                 WebElement authorElement = new WebDriverWait(driver, 20)
                             .until(ExpectedConditions.elementToBeClickable(By.ByCssSelector.cssSelector("div.thesisInfo div.infoDetailL ul li:nth-child(1) div p .instituteInfo")));
-
-                boolean isSameAuthor = isSameAuthor(author, authorElement);
+                String author = authorElement.getText().trim();
+                boolean isSameAuthor = excelAuthor.trim().equalsIgnoreCase(author);
 
                 WebElement titleElement = driver.findElementByCssSelector("div.thesisInfo div.thesisInfoTop h3");
 
@@ -93,14 +89,48 @@ public class KerisScraper {
                 keris.setQuery(query);
                 keris.setJaccard(jaccard);
 
+                if (!isSameAuthor) {
+                    keris.setAuthorDiff(excelAuthor + " = " + author);
+                }
+
+                List<WebElement> infos = driver.findElementsByCssSelector("div.infoDetailL ul li");
+                CommonInfo commonInfo = getCommonInfo(infos);
+
                 List<WebElement> btns = driver.findElementsByCssSelector("div.thesisInfo div.btnBunchL ul li:nth-child(1) a");
 
                 if (ScrapUtil.isExist(btns)) {
                     if (btns.get(0).getText().contains("원문")) {
                         WebElement hiddenForm = driver.findElementByCssSelector("form#f");
+                        String digitalUrl = digitalUrl(hiddenForm);
 
                         keris.setServiceMethod("원문을 url 연계하여 제공");
-                        keris.setDigitalUrl(digitalUrl(hiddenForm));
+                        keris.setDigitalUrl(digitalUrl);
+
+                        driver.navigate().to(digitalUrl);
+                        try {
+                            WebElement formElement = new WebDriverWait(driver, 10)
+                                    .until(ExpectedConditions.elementToBeClickable(By.ByCssSelector.cssSelector("form#orgViewForm")));
+                            WebElement input = formElement.findElement(By.cssSelector("input[name='fileRealName']"));
+                            String pdfName = input.getAttribute("value");
+                            keris.setFileName(pdfName);
+                        } catch (TimeoutException e1) {
+                            List<WebElement> iframe = driver.findElementsByCssSelector("iframe#download_frm");
+                            if (ScrapUtil.isExist(iframe)) {
+                                driver.switchTo().frame("download_frm");
+                                WebElement button = driver.findElementByCssSelector("div#main-content a");
+                                button.click();
+                                String href = button.getAttribute("href");
+                                String pdfName = href.substring(href.lastIndexOf("/") + 1);
+                                keris.setFileName(pdfName);
+                            } else {
+                                try {
+                                    driver.switchTo().alert();
+                                    return Pair.create(getFailObject(), commonInfo);
+                                } catch (NoAlertPresentException e2) {
+                                    throw new TimeoutException("Keris PDF Download Timeout");
+                                }
+                            }
+                        }
                     } else {
                         keris.setDigital(false);
 
@@ -113,9 +143,6 @@ public class KerisScraper {
                 } else {
                     keris.setDigital(false);
                 }
-
-                List<WebElement> infos = driver.findElementsByCssSelector("div.infoDetailL ul li");
-                CommonInfo commonInfo = getCommonInfo(infos);
 
                 matchedList.add(Pair.create(keris, commonInfo));
             }
@@ -192,7 +219,7 @@ public class KerisScraper {
 
     private static boolean isSameAuthor(String author, WebElement publishInfo) {
         String text = publishInfo.getText().trim();
-        return text.toLowerCase().equals(author.trim().toLowerCase());
+        return text.equalsIgnoreCase(author.trim());
     }
 
     private static void addSubtitleAndSubLang(List<String> list, String query) {

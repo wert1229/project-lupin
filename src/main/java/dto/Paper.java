@@ -3,15 +3,17 @@ package dto;
 public class Paper {
     private int id;
     private String paperName;
+    private String author;
     private CommonInfo info;
     private Congress congress;
     private CentralLib centralLib;
     private Keris keris;
     private College college;
 
-    public Paper(int id, String paperName) {
+    public Paper(int id, String paperName, String author) {
         this.id = id;
         this.paperName = paperName;
+        this.author = author;
     }
 
     public Keris getKeris() {
@@ -68,5 +70,13 @@ public class Paper {
 
     public void setCongress(Congress congress) {
         this.congress = congress;
+    }
+
+    public String getAuthor() {
+        return author;
+    }
+
+    public void setAuthor(String author) {
+        this.author = author;
     }
 }

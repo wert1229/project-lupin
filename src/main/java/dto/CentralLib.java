@@ -10,6 +10,7 @@ public class CentralLib {
     private String claimCode;
     private String serviceMethod;
     private String remark;
+    private String authorDiff;
 
     public CentralLib(String organName) {
         this.organName = organName;
@@ -87,5 +88,13 @@ public class CentralLib {
 
     public void setServiceMethod(String serviceMethod) {
         this.serviceMethod = serviceMethod;
+    }
+
+    public String getAuthorDiff() {
+        return authorDiff;
+    }
+
+    public void setAuthorDiff(String authorDiff) {
+        this.authorDiff = authorDiff;
     }
 }

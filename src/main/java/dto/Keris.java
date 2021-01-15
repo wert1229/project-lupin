@@ -8,6 +8,8 @@ public class Keris {
     private String digitalUrl;
     private String serviceMethod;
     private String remark;
+    private String authorDiff;
+    private String fileName;
 
     public Keris(String organName) {
         this.organName = organName;
@@ -68,5 +70,21 @@ public class Keris {
 
     public void setServiceMethod(String serviceMethod) {
         this.serviceMethod = serviceMethod;
+    }
+
+    public String getAuthorDiff() {
+        return authorDiff;
+    }
+
+    public void setAuthorDiff(String authorDiff) {
+        this.authorDiff = authorDiff;
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
     }
 }

@@ -152,6 +152,8 @@ public class ExcelHelper {
                 newCell.setCellValue(cell.getStringCellValue());
                 if (newCell.getColumnIndex() <= 6 && (cell.getStringCellValue() == null || cell.getStringCellValue().equals("")))
                     newCell.setCellStyle(this.emptyHighlight);
+                if (newCell.getColumnIndex() >= 27 && (cell.getStringCellValue() != null))
+                    newCell.setCellStyle(this.emptyHighlight);
             }
         }
     }
@@ -230,6 +232,7 @@ public class ExcelHelper {
         header.createCell(7).setCellValue("소장사항1 (국회도서관)");
         header.createCell(15).setCellValue("소장사항2 (국립중앙도서관)");
         header.createCell(21).setCellValue("소장사항3 (KERIS)");
+        header.createCell(29).setCellFormula(String.format("COUNTIF(AD3:AD%d, \"O\")", 903));
 
         CellRangeAddress common = new CellRangeAddress(0, 0, 2, 6);
         CellRangeAddress congress = new CellRangeAddress(0, 0, 7, 14);
@@ -273,6 +276,9 @@ public class ExcelHelper {
 
         subHeader.createCell(25).setCellValue("중도 유사도");
         subHeader.createCell(26).setCellValue("RISS 유사도");
+        subHeader.createCell(27).setCellValue("중도 저자비교");
+        subHeader.createCell(28).setCellValue("RISS 저자비교");
+        subHeader.createCell(29).setCellValue("RISS 다운로드");
     }
 
     public void saveExcel(Workbook result, String fileName) throws IOException {
@@ -316,5 +322,8 @@ public class ExcelHelper {
 
         row.createCell(25).setCellValue(paper.getCentralLib().getJaccard());
         row.createCell(26).setCellValue(paper.getKeris().getJaccard());
+        row.createCell(27).setCellValue(paper.getCentralLib().getAuthorDiff());
+        row.createCell(28).setCellValue(paper.getKeris().getAuthorDiff());
+        row.createCell(29).setCellValue(paper.getKeris().getFileName() == null ? "" : "O");
     }
 }
