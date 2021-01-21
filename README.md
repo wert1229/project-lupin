@@ -1,10 +1,12 @@
 # project-lupin
-## 검색 로직
-1. 논문 이름 전체 (ex. 한글이름 : 부제 = english_name : subtitle)
-2. 한글 이름만 (ex. 한글이름 : 부제)
-3. 영어 이름만 (ex. english_name : subtitle)
-4. 부제 제외한 한글 이름 (ex. 한글이름)
-5. 부제 제외한 영어 이름 (ex. english_name)
+## 업무 흐름 도식
+
+## 검색어 리스트
+* 논문 이름 전체 (ex. 한글이름 : 부제 = english_name : subtitle)
+* 한글 이름만 (ex. 한글이름 : 부제)
+* 영어 이름만 (ex. english_name : subtitle)
+* 부제 제외한 한글 이름 (ex. 한글이름)
+* 부제 제외한 영어 이름 (ex. english_name)
 
 ## 결과 신뢰도 체크
 ### 검색 결과로 나온 논문 전체 이름과 검색어 비교

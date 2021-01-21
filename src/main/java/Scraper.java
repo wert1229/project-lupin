@@ -47,7 +47,8 @@ public class Scraper {
 
         Sheet sheet = excel.getSheetAt(0);
         int lastRowNum = sheet.getLastRowNum();
-        if (startRowNum > endRowNum || startRowNum - 1 > lastRowNum || endRowNum - 1 > lastRowNum) return;
+        if (startRowNum > endRowNum || startRowNum - 1 > lastRowNum || endRowNum - 1 > lastRowNum)
+            return;
 
         int bundleCount = (endRowNum - startRowNum + 1) / bundleSize;
         if ((endRowNum - startRowNum + 1) % bundleSize != 0)
