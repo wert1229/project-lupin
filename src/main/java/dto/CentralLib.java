@@ -12,6 +12,8 @@ public class CentralLib {
     private String remark;
     private String authorDiff;
 
+    public CentralLib() {}
+
     public CentralLib(String organName) {
         this.organName = organName;
         this.isDigital = false;

@@ -14,7 +14,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static util.ScrapUtil.*;
-import static util.ScrapUtil.jaccard;
+import static util.ScrapUtil.similar;
 
 public class KerisScraper {
 
@@ -52,9 +52,8 @@ public class KerisScraper {
             try {
                 driver.get(KERIS_URL + ScrapUtil.removeAllSpecialChar(query));
             } catch (WebDriverException e) {
-                Keris keris = new Keris(ORGAN_NAME);
-                keris.setRemark("크롤링 라이브러리 연결 실패");
-                return Pair.create(keris, new CommonInfo());
+                e.printStackTrace();
+                throw new TimeoutException();
             }
 
             List<WebElement> noResult = driver.findElementsByCssSelector("div.contentInner div.srchResultW.noList");
@@ -107,12 +106,14 @@ public class KerisScraper {
                         keris.setDigitalUrl(digitalUrl);
 
                         driver.navigate().to(digitalUrl);
+
                         try {
-                            WebElement formElement = new WebDriverWait(driver, 10)
+                            WebElement formElement = new WebDriverWait(driver, 15)
                                     .until(ExpectedConditions.elementToBeClickable(By.ByCssSelector.cssSelector("form#orgViewForm")));
                             WebElement input = formElement.findElement(By.cssSelector("input[name='fileRealName']"));
                             String pdfName = input.getAttribute("value");
                             keris.setFileName(pdfName);
+
                         } catch (TimeoutException e1) {
                             List<WebElement> iframe = driver.findElementsByCssSelector("iframe#download_frm");
                             if (ScrapUtil.isExist(iframe)) {
@@ -123,13 +124,13 @@ public class KerisScraper {
                                 String pdfName = href.substring(href.lastIndexOf("/") + 1);
                                 keris.setFileName(pdfName);
                             } else {
-                                try {
-                                    driver.switchTo().alert();
-                                    return Pair.create(getFailObject(), commonInfo);
-                                } catch (NoAlertPresentException e2) {
+                                List<WebElement> mac = driver.findElementsByCssSelector("body.div-area.mac");
+                                if (!ScrapUtil.isExist(mac)) {
                                     throw new TimeoutException("Keris PDF Download Timeout");
                                 }
                             }
+                        } catch (UnhandledAlertException e2) {
+                            return Pair.create(getFailObject("원문 제공 불가"), commonInfo);
                         }
                     } else {
                         keris.setDigital(false);
@@ -150,8 +151,11 @@ public class KerisScraper {
             if (matchedList.size() > 0) break;
         }
 
-        if (matchedList.size() == 0)
-            return Pair.create(getFailObject(), new CommonInfo());
+        if (matchedList.size() == 0) {
+            System.out.println("size 0 paperName : " + paperName);
+            System.out.println("size 0 queryList : " + Arrays.toString(queryList.toArray()));
+            return Pair.create(getFailObject("일치하는 검색 결과 없음"), new CommonInfo());
+        }
 
         matchedList.sort((o1, o2) -> Double.compare(o2.getFirst().getJaccard(), o1.getFirst().getJaccard()));
         return matchedList.get(0);
@@ -175,41 +179,41 @@ public class KerisScraper {
     private static double getJaccard(String query, String text) {
         double result = 0.0;
 
-        double fullMatch = jaccard(query, text);
+        double fullMatch = similar(query, text);
         result = Math.max(result, fullMatch);
         if (result > 0.9) return result;
 
         if (query.contains("=") && text.contains("=")) {
             String[] split = text.split("=");
-            double withoutSubLang = jaccard(query.split("=")[0], split[0]);
-            double subLang = jaccard(query.split("=")[1], split.length > 1 ? split[1] : text);
+            double withoutSubLang = similar(query.split("=")[0], split[0]);
+            double subLang = similar(query.split("=")[1], split.length > 1 ? split[1] : text);
             result = Math.max(result, Math.max(withoutSubLang, subLang));
             if (result > 0.9) return result;
         }
 
         if (!query.contains("=") && text.contains("=")) {
             String[] split = text.split("=");
-            double withoutSubLang = jaccard(query, split[0]);
-            double subLang = jaccard(query, split.length > 1 ? split[1] : text);
+            double withoutSubLang = similar(query, split[0]);
+            double subLang = similar(query, split.length > 1 ? split[1] : text);
             result = Math.max(result, Math.max(withoutSubLang, subLang));
             if (result > 0.9) return result;
         }
 
         if (query.contains("=") && !text.contains("=")) {
-            double withoutSubLang = jaccard(query.split("=")[0], text);
-            double subLang = jaccard(query.split("=")[1], text);
+            double withoutSubLang = similar(query.split("=")[0], text);
+            double subLang = similar(query.split("=")[1], text);
             result = Math.max(result, Math.max(withoutSubLang, subLang));
             if (result > 0.9) return result;
         }
 
         if (!query.contains(":") && text.contains(":")) {
-            double withoutSubtitle = jaccard(query, text.split(":")[0]);
+            double withoutSubtitle = similar(query, text.split(":")[0]);
             result = Math.max(result, withoutSubtitle);
             if (result > 0.9) return result;
         }
 
         if (query.contains(":") && !text.contains(":")) {
-            double withoutSubtitle = jaccard(query.split(":")[0], text);
+            double withoutSubtitle = similar(query.split(":")[0], text);
             result = Math.max(result, withoutSubtitle);
             if (result > 0.9) return result;
         }
@@ -316,10 +320,10 @@ public class KerisScraper {
 
     }
 
-    private static Keris getFailObject() {
+    private static Keris getFailObject(String remark) {
         Keris keris = new Keris(ORGAN_NAME);
         keris.setServiceMethod("서비스 제공 불가");
-        keris.setRemark("일치하는 검색 결과 없음");
+        keris.setRemark(remark);
         keris.setDigital(null);
         return keris;
     }

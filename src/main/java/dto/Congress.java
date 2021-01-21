@@ -11,6 +11,8 @@ public class Congress {
     private String serviceMethod;
     private String remark;
 
+    public Congress() {}
+
     public Congress(String organName) {
         this.organName = organName;
         this.isDigital = false;

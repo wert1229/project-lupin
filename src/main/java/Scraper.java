@@ -143,8 +143,8 @@ public class Scraper {
                 try {
                     kerisPair = KerisScraper.scrap(driver, paperName, congressPaperName, author);
                     tried = 0;
-                } catch (NoSuchElementException | TimeoutException e) {
-                    System.out.println("keris NoSuchElement retried "+ tried +" times : " + paperName);
+                } catch (Exception e) {
+                    System.out.println("keris Exception retried "+ tried +" times : " + paperName);
                     System.out.println(e.getMessage());
                     tried++;
                 }
@@ -157,8 +157,8 @@ public class Scraper {
                 try {
                     centralLib = CentralLibScraper.scrap(driver, paperName, congressPaperName, author);
                     tried = 0;
-                } catch (NoSuchElementException | TimeoutException e) {
-                    System.out.println("centralLib NoSuchElement retried "+ tried +" times : " + paperName);
+                } catch (Exception e) {
+                    System.out.println("centralLib Exception retried "+ tried +" times : " + paperName);
                     System.out.println(e.getMessage());
                     tried++;
                 }
@@ -185,7 +185,6 @@ public class Scraper {
             mapper.writerWithDefaultPrettyPrinter()
                     .writeValue(new File(RESOURCE_DIRECTORY + RESULT_FILE_NAME + fileIndex + ".json"), list);
             excelHelper.saveExcel(resultExcel, RESULT_FILE_NAME + fileIndex + ".xlsx");
-            changeFiles(list);
         }
 
         driver.quit();
@@ -199,7 +198,6 @@ public class Scraper {
                         ".shadowRoot.getElementById('downloadsList').items;" +
                         "if (items.every(e => e.state === 'COMPLETE'))" +
                         "return items.map(e => e.fileUrl || e.file_url);"));
-//        System.out.println(Arrays.toString(list.toArray()));
     }
 
     private void changeFiles(List<Paper> list) {

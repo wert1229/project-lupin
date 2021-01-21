@@ -11,6 +11,8 @@ public class Keris {
     private String authorDiff;
     private String fileName;
 
+    public Keris() {}
+
     public Keris(String organName) {
         this.organName = organName;
         this.isDigital = false;

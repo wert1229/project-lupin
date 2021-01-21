@@ -39,33 +39,10 @@ public class ScrapUtil {
     }
 
     public static String removeAllSpecialChar(String query) {
-        return query.replaceAll("[^一-龥ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z0-9 ]", " ");
+        return query.replaceAll("[^ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z0-9 \\u2e80-\\u2eff\\u31c0-\\u31ef\\u3200-\\u32ff\\u3400-\\u4dbf\\u4e00-\\u9fbf\\uf900-\\ufaff]", " ");
     }
 
-    public static List<String> getSplitQueries(String query) {
-        List<String> list = new ArrayList<>();
-        String str = query.trim();
-        list.add(str);
-
-        char[] chars = str.toCharArray();
-        int prev = 0;
-
-        for (int i = 0; i < chars.length; i++) {
-            if (chars[i] != ' ' && i != chars.length - 1) continue;
-            if (prev != 0) {
-                list.add((str.substring(0, prev) + " " + str.substring(i + 1)).trim());
-            }
-            prev = i;
-        }
-
-        return list;
-    }
-
-    public static double jaccard(String str1, String str2) {
-//        String[] arr1 = str1.toLowerCase().split(" ");
-//        String[] arr2 = str2.toLowerCase().split(" ");
-//        Set<String> s1 = new HashSet<>(Arrays.asList(arr1));
-//        Set<String> s2 = new HashSet<>(Arrays.asList(arr2));
+    public static double similar(String str1, String str2) {
         Set<String> s1 = getKomoranAnalyzedSet(str1.toLowerCase());
         Set<String> s2 = getKomoranAnalyzedSet(str2.toLowerCase());
 
@@ -124,4 +101,5 @@ public class ScrapUtil {
     public static String removeQuotes(String str) {
         return str.replaceAll("['\"‘’”“·《≪≫》]", "");
     }
+
 }

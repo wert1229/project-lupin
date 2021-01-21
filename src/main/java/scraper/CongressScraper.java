@@ -19,7 +19,8 @@ import static util.ScrapUtil.removeBrackets;
 
 public class CongressScraper {
 
-    public static final String CONGRESS_URL = "https://dl.nanet.go.kr/search/searchInnerList.do";
+//    public static final String CONGRESS_URL = "https://dl.nanet.go.kr/search/searchInnerList.do";
+    public static final String CONGRESS_URL = "https://dl.nanet.go.kr/";
     public static final String ORGAN_NAME = "국회도서관";
     public static final double JACCARD_STANDARD = 0.60;
 
@@ -56,7 +57,8 @@ public class CongressScraper {
 
             WebElement searchInput = driver.findElementByCssSelector("input#searchQuery");
             searchInput.sendKeys(query);
-            WebElement searchBtn = driver.findElementByCssSelector("input#searchBtn");
+//            WebElement searchBtn = driver.findElementByCssSelector("input#searchBtn");
+            WebElement searchBtn = driver.findElementByCssSelector("input[type='submit']");
             searchBtn.click();
 
             if (ScrapUtil.isExist(driver.findElementsByCssSelector("li.none"))) continue;
@@ -197,21 +199,21 @@ public class CongressScraper {
         String text = titleElement.getText();
         text = text.substring(0, text.lastIndexOf("/"));
 
-        double fullMatch = ScrapUtil.jaccard(query, text);
+        double fullMatch = ScrapUtil.similar(query, text);
         if (fullMatch > JACCARD_STANDARD) return fullMatch;
 
         if (!query.contains("=") && text.contains("=")) {
-            double withoutSubLang = ScrapUtil.jaccard(query, text.split("=")[0]);
+            double withoutSubLang = ScrapUtil.similar(query, text.split("=")[0]);
             if (withoutSubLang > JACCARD_STANDARD) return withoutSubLang;
         }
 
         if (!query.contains("=") && text.contains("=")) {
-            double subLang = ScrapUtil.jaccard(query, text.split("=")[1]);
+            double subLang = ScrapUtil.similar(query, text.split("=")[1]);
             if (subLang > JACCARD_STANDARD) return subLang;
         }
 
         if (!query.contains(":") && text.contains(":")) {
-            double withoutSubtitle = ScrapUtil.jaccard(query, text.split(":")[0]);
+            double withoutSubtitle = ScrapUtil.similar(query, text.split(":")[0]);
             if (withoutSubtitle > JACCARD_STANDARD) return withoutSubtitle;
         }
 

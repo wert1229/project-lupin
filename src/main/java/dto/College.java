@@ -12,6 +12,8 @@ public class College {
     private String serviceMethod;
     private String remark;
 
+    public College() {}
+
     public College(String organName) {
         this.organName = organName;
         this.isNormal = true;

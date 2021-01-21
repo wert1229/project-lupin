@@ -2,6 +2,7 @@ package scraper;
 
 import dto.CentralLib;
 import org.openqa.selenium.By;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -62,9 +63,8 @@ public class CentralLibScraper {
             try {
                 driver.get(CENTRAL_LIB_URL + query);
             } catch (WebDriverException e) {
-                CentralLib centralLib = new CentralLib(ORGAN_NAME);
-                centralLib.setRemark("크롤링 라이브러리 연결 실패");
-                return centralLib;
+                e.printStackTrace();
+                throw new TimeoutException();
             }
 
             List<WebElement> noResult = driver.findElementsByCssSelector("div.cont_wrap li.ucsrch9_item.no_cont");
@@ -99,12 +99,12 @@ public class CentralLibScraper {
 
                 String fullName = driver.findElementByCssSelector("div#popDetailView h3.detail_tit").getText();
                 fullName = removeBigBrackets(fullName);
+                String author = row.findElements(By.cssSelector("span.mr.txt_grey")).get(0).getText();
 
                 double jaccard = getJaccard(query, fullName);
-                jaccard = Math.max(jaccard, ScrapUtil.jaccard(paperName, fullName));
+                jaccard = Math.max(jaccard, ScrapUtil.similar(paperName, fullName));
 
-                double rowTitleSimilar = getRowTitleMatchRatio(row, query);
-                if (rowTitleSimilar < 0.70 || jaccard < JACCARD_STANDARD) {
+                if (jaccard < JACCARD_STANDARD) {
                     closeBtn.click();
                     continue;
                 }
@@ -112,14 +112,23 @@ public class CentralLibScraper {
                 if (prevFullTitle == null) {
                     prevFullTitle = fullName;
                 } else {
-                    if (rowTitleSimilar < 0.70 && getJaccard(prevFullTitle, fullName) < 0.8)
+                    double rowTitleSimilar = getRowTitleMatchRatio(row, query);
+                    if (rowTitleSimilar < 0.70 && getJaccard(prevFullTitle, fullName) < 0.8) {
+                        closeBtn.click();
                         continue;
+                    }
                 }
-                centralLib.setJaccard(jaccard);
 
                 List<WebElement> tableInfos = driver.findElementsByCssSelector("div.table div.table_row span.cont");
-                String author = tableInfos.size() > 3 ? tableInfos.get(3).getAttribute("innerHTML").trim() : "";
                 String claimCode = tableInfos.size() > 6 ? tableInfos.get(6).getAttribute("innerHTML").trim() : "";
+
+                // TODO: 유사도 구분짓기
+                if (centralLib.getClaimCode() != null && !centralLib.getClaimCode().equals("") && !claimCode.equals("")) {
+                    closeBtn.click();
+                    continue;
+                }
+
+                centralLib.setJaccard(jaccard);
 
                 if (!author.trim().equals(excelAuthor.trim())) {
                     centralLib.setAuthorDiff(excelAuthor + " = " + author);
@@ -197,41 +206,41 @@ public class CentralLibScraper {
     private static double getJaccard(String query, String text) {
         double result = 0.0;
 
-        double fullMatch = jaccard(query, text);
+        double fullMatch = similar(query, text);
         result = Math.max(result, fullMatch);
         if (result > 0.9) return result;
 
         if (query.contains("=") && text.contains("=")) {
             String[] split = text.split("=");
-            double withoutSubLang = jaccard(query.split("=")[0], split[0]);
-            double subLang = jaccard(query.split("=")[1], split.length > 1 ? split[1] : text);
+            double withoutSubLang = similar(query.split("=")[0], split[0]);
+            double subLang = similar(query.split("=")[1], split.length > 1 ? split[1] : text);
             result = Math.max(result, Math.max(withoutSubLang, subLang));
             if (result > 0.9) return result;
         }
 
         if (!query.contains("=") && text.contains("=")) {
             String[] split = text.split("=");
-            double withoutSubLang = jaccard(query, split[0]);
-            double subLang = jaccard(query, split.length > 1 ? split[1] : text);
+            double withoutSubLang = similar(query, split[0]);
+            double subLang = similar(query, split.length > 1 ? split[1] : text);
             result = Math.max(result, Math.max(withoutSubLang, subLang));
             if (result > 0.9) return result;
         }
 
         if (query.contains("=") && !text.contains("=")) {
-            double withoutSubLang = jaccard(query.split("=")[0], text);
-            double subLang = jaccard(query.split("=")[1], text);
+            double withoutSubLang = similar(query.split("=")[0], text);
+            double subLang = similar(query.split("=")[1], text);
             result = Math.max(result, Math.max(withoutSubLang, subLang));
             if (result > 0.9) return result;
         }
 
-        if (!query.contains(":") && text.contains(":")) {
-            double withoutSubtitle = jaccard(query, text.split(":")[0]);
-            result = Math.max(result, withoutSubtitle);
-            if (result > 0.9) return result;
-        }
+//        if (!query.contains(":") && text.contains(":")) {
+//            double withoutSubtitle = jaccard(query, text.split(":")[0]);
+//            result = Math.max(result, withoutSubtitle);
+//            if (result > 0.9) return result;
+//        }
 
         if (query.contains(":") && !text.contains(":")) {
-            double withoutSubtitle = jaccard(query.split(":")[0], text);
+            double withoutSubtitle = similar(query.split(":")[0], text);
             result = Math.max(result, withoutSubtitle);
             if (result > 0.9) return result;
         }
@@ -248,17 +257,14 @@ public class CentralLibScraper {
             list.add(subLang);
             if (originLang.contains(":")) {
                 String[] originLangSplit = originLang.split(":");
-                list.add(originLangSplit[0].length() > 5 ? 0 : list.size(), originLangSplit[0].trim());
-                list.add(originLangSplit[1].trim());
+                list.add(1, originLangSplit[0].trim());
             }
             if (subLang.contains(":")) {
                 list.add(subLang.split(":")[0].trim());
-                list.add(subLang.split(":")[1].trim());
             }
         } else {
             if (query.contains(":")) {
-                list.add(0, query.split(":")[0].trim());
-                list.add(query.split(":")[1].trim());
+                list.add(1, query.split(":")[0].trim());
             }
         }
     }

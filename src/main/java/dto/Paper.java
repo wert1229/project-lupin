@@ -10,6 +10,8 @@ public class Paper {
     private Keris keris;
     private College college;
 
+    public Paper() {}
+
     public Paper(int id, String paperName, String author) {
         this.id = id;
         this.paperName = paperName;
