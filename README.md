@@ -1,6 +1,6 @@
 # project-lupin
 ## 업무 흐름 도식
-
+![1](./flow.png)
 ## 검색어 리스트
 * 논문 이름 전체 (ex. 한글이름 : 부제 = english_name : subtitle)
 * 한글 이름만 (ex. 한글이름 : 부제)
