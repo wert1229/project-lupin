@@ -61,7 +61,14 @@ public class CongressScraper {
             WebElement searchBtn = driver.findElementByCssSelector("input[type='submit']");
             searchBtn.click();
 
-            if (ScrapUtil.isExist(driver.findElementsByCssSelector("li.none"))) continue;
+            if (ScrapUtil.isExist(driver.findElementsByCssSelector("li.none")))
+                continue;
+
+            String type = new WebDriverWait(driver, 3)
+                    .until(ExpectedConditions.elementToBeClickable(By.cssSelector("ul.list li:first-child ul li:first-child"))).getText();
+
+            if (!type.contains("논문"))
+                continue;
 
             new WebDriverWait(driver, 3)
                     .until(ExpectedConditions.elementToBeClickable(By.cssSelector("ul.list li:nth-child(1) a"))).click();
@@ -153,7 +160,7 @@ public class CongressScraper {
         String text = dd.getText().trim();
         if (text.contains("\n")) text = text.split("\n")[0];
         String[] split = text.split(":");
-        return split[1].trim();
+        return split.length > 1 ? split[1].trim() : "";
     }
 
     private static String getMajor(WebElement dd) {

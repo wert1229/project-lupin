@@ -86,7 +86,7 @@ public class KerisScraper {
 
                 Keris keris = new Keris(ORGAN_NAME);
                 keris.setQuery(query);
-                keris.setJaccard(jaccard);
+                keris.setSimilarity(jaccard);
 
                 if (!isSameAuthor) {
                     keris.setAuthorDiff(excelAuthor + " = " + author);
@@ -109,16 +109,13 @@ public class KerisScraper {
 
                         try {
                             WebElement formElement = new WebDriverWait(driver, 15)
-                                    .until(ExpectedConditions.elementToBeClickable(By.ByCssSelector.cssSelector("form#orgViewForm")));
-                            WebElement input = formElement.findElement(By.cssSelector("input[name='fileRealName']"));
-                            String pdfName = input.getAttribute("value");
-                            keris.setFileName(pdfName);
-
+                                    .until(ExpectedConditions.elementToBeClickable(By.ByCssSelector.cssSelector("embed")));
                         } catch (TimeoutException e1) {
                             List<WebElement> iframe = driver.findElementsByCssSelector("iframe#download_frm");
                             if (ScrapUtil.isExist(iframe)) {
                                 driver.switchTo().frame("download_frm");
-                                WebElement button = driver.findElementByCssSelector("div#main-content a");
+                                WebElement button = new WebDriverWait(driver, 3)
+                                        .until(ExpectedConditions.elementToBeClickable(By.ByCssSelector.cssSelector("div#main-content a")));
                                 button.click();
                                 String href = button.getAttribute("href");
                                 String pdfName = href.substring(href.lastIndexOf("/") + 1);
@@ -157,7 +154,7 @@ public class KerisScraper {
             return Pair.create(getFailObject("일치하는 검색 결과 없음"), new CommonInfo());
         }
 
-        matchedList.sort((o1, o2) -> Double.compare(o2.getFirst().getJaccard(), o1.getFirst().getJaccard()));
+        matchedList.sort((o1, o2) -> Double.compare(o2.getFirst().getSimilarity(), o1.getFirst().getSimilarity()));
         return matchedList.get(0);
     }
 

@@ -8,7 +8,6 @@ public class Paper {
     private Congress congress;
     private CentralLib centralLib;
     private Keris keris;
-    private College college;
 
     public Paper() {}
 
@@ -48,14 +47,6 @@ public class Paper {
 
     public void setCentralLib(CentralLib centralLib) {
         this.centralLib = centralLib;
-    }
-
-    public College getCollege() {
-        return college;
-    }
-
-    public void setCollege(College college) {
-        this.college = college;
     }
 
     public CommonInfo getInfo() {

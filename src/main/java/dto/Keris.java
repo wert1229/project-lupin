@@ -3,13 +3,12 @@ package dto;
 public class Keris {
     private String organName;
     private String query;
-    private double jaccard;
+    private double similarity;
     private Boolean isDigital;
     private String digitalUrl;
     private String serviceMethod;
     private String remark;
     private String authorDiff;
-    private String fileName;
 
     public Keris() {}
 
@@ -42,12 +41,12 @@ public class Keris {
         this.query = query;
     }
 
-    public double getJaccard() {
-        return jaccard;
+    public double getSimilarity() {
+        return similarity;
     }
 
-    public void setJaccard(double jaccard) {
-        this.jaccard = jaccard;
+    public void setSimilarity(double similarity) {
+        this.similarity = similarity;
     }
 
     public Boolean getDigital() {
@@ -80,13 +79,5 @@ public class Keris {
 
     public void setAuthorDiff(String authorDiff) {
         this.authorDiff = authorDiff;
-    }
-
-    public String getFileName() {
-        return fileName;
-    }
-
-    public void setFileName(String fileName) {
-        this.fileName = fileName;
     }
 }

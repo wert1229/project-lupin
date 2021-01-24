@@ -27,7 +27,7 @@ public class CentralLibScraper {
         query = removeBrackets(query);
         query = changeQuote(query);
         query = query.replaceAll("[≪≫]", " ");
-        query = query.replaceAll("[?]", "");
+        query = query.replaceAll("[?&]", "");
         return query;
     }
 
@@ -99,6 +99,7 @@ public class CentralLibScraper {
 
                 String fullName = driver.findElementByCssSelector("div#popDetailView h3.detail_tit").getText();
                 fullName = removeBigBrackets(fullName);
+                fullName = rearrangeAbnormalFullTitle(fullName);
                 String author = row.findElements(By.cssSelector("span.mr.txt_grey")).get(0).getText();
 
                 double jaccard = getJaccard(query, fullName);
@@ -128,7 +129,7 @@ public class CentralLibScraper {
                     continue;
                 }
 
-                centralLib.setJaccard(jaccard);
+                centralLib.setSimilarity(jaccard);
 
                 if (!author.trim().equals(excelAuthor.trim())) {
                     centralLib.setAuthorDiff(excelAuthor + " = " + author);
@@ -172,6 +173,21 @@ public class CentralLibScraper {
         }
 
         return matchedList.get(0);
+    }
+
+    private static String rearrangeAbnormalFullTitle(String fullTitle) {
+        String[] split = fullTitle.split("=");
+
+        if (split.length < 2) {
+            int count = ScrapUtil.countCharInStr(fullTitle, ':');
+            if (count > 1) {
+                int index = split[0].indexOf(":");
+                return split[0].substring(0, index) + "=" + split[0].substring(index + 1);
+            } else{
+                return split[0];
+            }
+        }
+        return fullTitle;
     }
 
     private static double getRowTitleMatchRatio(WebElement row, String query) {

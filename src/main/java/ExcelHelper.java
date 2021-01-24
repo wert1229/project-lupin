@@ -1,5 +1,6 @@
 import dto.Keris;
 import dto.Paper;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -11,10 +12,11 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public class ExcelHelper {
-
     public static final int EXCEL_HEADER_OFFSET = 2;
+    public static final String INTEGRATION_SHEET_NAME = "시트1";
     public static final String INTEGRATION_FILE_NAME = "integration.xlsx";
     public static final String COMPARE_FILE_NAME = "compare.xlsx";
+
     private CellStyle emptyHighlight;
 
     public Workbook getExcelData(String fileName) {
@@ -28,20 +30,29 @@ public class ExcelHelper {
 
     public void integrateExcels(int startRowNum, int endRowNum, int bundleSize) throws IOException {
         Workbook integration = new XSSFWorkbook();
-        Sheet sheet = integration.createSheet("시트1");
+        Sheet sheet = integration.createSheet(INTEGRATION_SHEET_NAME);
         createExcelHeaders(sheet);
         createEmptyStyle(integration);
 
         int bundleCount = (endRowNum - startRowNum + 1) / bundleSize;
-        if ((endRowNum - startRowNum + 1) % bundleSize != 0)
+        if ((endRowNum - startRowNum + 1) % bundleSize != 0) {
             bundleCount++;
+        }
         System.out.println(bundleCount);
+
         for (int i = 0; i < bundleCount; i++) {
             Workbook excel = getExcelData(Scraper.RESULT_FILE_NAME + i + ".xlsx");
             appendExcelData(sheet, excel);
         }
 
         saveExcel(integration, INTEGRATION_FILE_NAME);
+    }
+
+    private void createEmptyStyle(Workbook excel) {
+        CellStyle emptyHighlight = excel.createCellStyle();
+        emptyHighlight.setFillForegroundColor(IndexedColors.LIGHT_YELLOW.getIndex());
+        emptyHighlight.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        this.emptyHighlight = emptyHighlight;
     }
 
     private void appendExcelData(Sheet baseSheet, Workbook excel) {
@@ -56,33 +67,27 @@ public class ExcelHelper {
         }
     }
 
-    private void createEmptyStyle(Workbook excel) {
-        CellStyle emptyHighlight = excel.createCellStyle();
-        emptyHighlight.setFillForegroundColor(IndexedColors.LIGHT_YELLOW.getIndex());
-        emptyHighlight.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        this.emptyHighlight = emptyHighlight;
-    }
-
     private void appendRow(Sheet baseSheet, int index, Row addRow) {
+        if (addRow == null) {
+            return;
+        }
+
         Row row = baseSheet.createRow(index);
 
-        if (addRow == null) return;
-        for (Cell cell : addRow) {
-            if (cell.getCellType() == CellType.NUMERIC) {
-                row.createCell(row.getPhysicalNumberOfCells()).setCellValue(cell.getNumericCellValue());
+        for (Cell addRowCell : addRow) {
+            if (addRowCell.getCellType() == CellType.NUMERIC) {
+                row.createCell(row.getPhysicalNumberOfCells()).setCellValue(addRowCell.getNumericCellValue());
             } else {
                 Cell newCell = row.createCell(row.getPhysicalNumberOfCells());
-                newCell.setCellValue(cell.getStringCellValue());
-                if (newCell.getColumnIndex() <= 6 && (cell.getStringCellValue() == null || cell.getStringCellValue().equals("")))
+                newCell.setCellValue(addRowCell.getStringCellValue());
+                if (newCell.getColumnIndex() <= 6 && StringUtils.isBlank(addRowCell.getStringCellValue())) {
                     newCell.setCellStyle(this.emptyHighlight);
-                if (newCell.getColumnIndex() <= 28 && newCell.getColumnIndex() >= 27 && (cell.getStringCellValue() != null && !cell.getStringCellValue().equals("")))
+                }
+                if (newCell.getColumnIndex() >= 27 && newCell.getColumnIndex() <= 28 && !StringUtils.isBlank(addRowCell.getStringCellValue())) {
                     newCell.setCellStyle(this.emptyHighlight);
+                }
             }
         }
-        Cell downloadCell = row.getCell(29);
-
-        if (downloadCell != null && downloadCell.getStringCellValue().equals("abnormal"))
-            downloadCell.setCellStyle(this.emptyHighlight);
     }
 
     public void createExcelHeaders(Sheet sheet) {
@@ -91,7 +96,6 @@ public class ExcelHelper {
         header.createCell(7).setCellValue("소장사항1 (국회도서관)");
         header.createCell(15).setCellValue("소장사항2 (국립중앙도서관)");
         header.createCell(21).setCellValue("소장사항3 (KERIS)");
-        header.createCell(29).setCellFormula(String.format("\"총 \" & COUNTIF(AD3:AD%d, \"O\") & \" 개\"", 903));
 
         CellRangeAddress common = new CellRangeAddress(0, 0, 2, 6);
         CellRangeAddress congress = new CellRangeAddress(0, 0, 7, 14);
@@ -137,7 +141,6 @@ public class ExcelHelper {
         subHeader.createCell(26).setCellValue("RISS 유사도");
         subHeader.createCell(27).setCellValue("중도 저자비교");
         subHeader.createCell(28).setCellValue("RISS 저자비교");
-        subHeader.createCell(29).setCellValue("RISS 다운로드");
     }
 
     public void saveExcel(Workbook result, String fileName) throws IOException {
@@ -179,21 +182,10 @@ public class ExcelHelper {
         row.createCell(23).setCellValue(paper.getKeris().getServiceMethod());
         row.createCell(24).setCellValue(paper.getKeris().getDigitalUrl());
 
-        row.createCell(25).setCellValue(paper.getCentralLib().getJaccard());
-        row.createCell(26).setCellValue(paper.getKeris().getJaccard());
+        row.createCell(25).setCellValue(paper.getCentralLib().getSimilarity());
+        row.createCell(26).setCellValue(paper.getKeris().getSimilarity());
         row.createCell(27).setCellValue(paper.getCentralLib().getAuthorDiff());
         row.createCell(28).setCellValue(paper.getKeris().getAuthorDiff());
-        row.createCell(29).setCellValue(getDownloadState(paper.getKeris()));
-    }
-
-    private String getDownloadState(Keris keris) {
-        if (keris.getDigitalUrl() != null) {
-            if (keris.getFileName() == null)
-                return "abnormal";
-            else
-                return "O";
-        }
-        return "";
     }
 
     public void createCompareSet(int startRowNum, int endRowNum) throws IOException {

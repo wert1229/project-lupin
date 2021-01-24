@@ -3,6 +3,7 @@ import dto.*;
 import org.apache.commons.math3.util.Pair;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.openqa.selenium.ElementNotInteractableException;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.TimeoutException;
@@ -144,7 +145,7 @@ public class Scraper {
                 try {
                     kerisPair = KerisScraper.scrap(driver, paperName, congressPaperName, author);
                     tried = 0;
-                } catch (Exception e) {
+                } catch (NoSuchElementException | TimeoutException | ElementNotInteractableException e) {
                     System.out.println("keris Exception retried "+ tried +" times : " + paperName);
                     System.out.println(e.getMessage());
                     tried++;
@@ -158,7 +159,7 @@ public class Scraper {
                 try {
                     centralLib = CentralLibScraper.scrap(driver, paperName, congressPaperName, author);
                     tried = 0;
-                } catch (Exception e) {
+                } catch (NoSuchElementException | TimeoutException | ElementNotInteractableException e) {
                     System.out.println("centralLib Exception retried "+ tried +" times : " + paperName);
                     System.out.println(e.getMessage());
                     tried++;
@@ -180,8 +181,6 @@ public class Scraper {
             }
         }
 
-        waitForDownload(driver);
-
         if (list.size() > 0) {
             mapper.writerWithDefaultPrettyPrinter()
                     .writeValue(new File(RESOURCE_DIRECTORY + RESULT_FILE_NAME + fileIndex + ".json"), list);
@@ -189,46 +188,6 @@ public class Scraper {
         }
 
         driver.quit();
-    }
-
-    private void waitForDownload(ChromeDriver driver) {
-        driver.get("chrome://downloads/");
-        List<String> list = new FluentWait<JavascriptExecutor>(driver)
-                .withTimeout(Duration.ofSeconds(120))
-                .until(javascriptExecutor -> (List<String>) javascriptExecutor.executeScript("var items = document.querySelector('downloads-manager')" +
-                        ".shadowRoot.getElementById('downloadsList').items;" +
-                        "if (items.every(e => e.state === 'COMPLETE'))" +
-                        "return items.map(e => e.fileUrl || e.file_url);"));
-    }
-
-    private void changeFiles(List<Paper> list) {
-        for (Paper paper : list) {
-            String paperName = paper.getPaperName();
-            String author = paper.getAuthor();
-            Keris keris = paper.getKeris();
-            String newFileName = getNewFileName(paperName, author);
-            changeFileName(keris.getFileName(), newFileName);
-        }
-    }
-
-    private String getNewFileName(String paperName, String author) {
-        int spaceCount = 0;
-        for (int i = 0; i < paperName.length(); i++) {
-            if (paperName.charAt(i) == ' ') {
-                spaceCount++;
-            }
-
-            if (spaceCount == 3) {
-                return paperName.substring(0, i).trim() + "-" + author + ".pdf";
-            }
-        }
-        return paperName + "-" + author + ".pdf";
-    }
-
-    private void changeFileName(String fileName, String newFileName) {
-        if (fileName == null || fileName.equals("")) return;
-        File originFile = new File(Selenium.DOWNLOAD_PATH + fileName);
-        boolean isSuccess = originFile.renameTo(new File(Selenium.DOWNLOAD_PATH + "/renamed/" + newFileName));
     }
 
     private CommonInfo createInfo(CommonInfo congress, CommonInfo keris) {

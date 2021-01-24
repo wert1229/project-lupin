@@ -3,7 +3,7 @@ package dto;
 public class CentralLib {
     private String organName;
     private String query;
-    private double jaccard;
+    private double similarity;
     private Boolean isDigital;
     private Boolean isOriginal;
     private String digitalUrl;
@@ -36,8 +36,8 @@ public class CentralLib {
         return query;
     }
 
-    public double getJaccard() {
-        return jaccard;
+    public double getSimilarity() {
+        return similarity;
     }
 
     public Boolean getDigital() {
@@ -76,8 +76,8 @@ public class CentralLib {
         this.query = query;
     }
 
-    public void setJaccard(double jaccard) {
-        this.jaccard = jaccard;
+    public void setSimilarity(double similarity) {
+        this.similarity = similarity;
     }
 
     public void setDigitalUrl(String digitalUrl) {

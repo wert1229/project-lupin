@@ -50,6 +50,7 @@ public class ScrapUtil {
         int sb = s2.size();
         s1.retainAll(s2);
         final int intersection = s1.size();
+
         return 1.0 / (sa + sb - intersection) * intersection;
     }
 
@@ -78,17 +79,6 @@ public class ScrapUtil {
                 paperName.substring(equalIndex, colonIndex - 1);
     }
 
-    public static String[] separateDualTitle(String fullTitle) {
-        if (fullTitle.indexOf('=') != -1) {
-            return Arrays.stream(fullTitle.split("="))
-                    .map(String::trim)
-                    .collect(Collectors.toList())
-                    .toArray(new String[2]);
-        } else {
-            return Collections.singletonList(fullTitle).toArray(new String[1]);
-        }
-    }
-
     public static boolean isExist(List<WebElement> elements) {
         return !elements.isEmpty();
     }
@@ -102,4 +92,12 @@ public class ScrapUtil {
         return str.replaceAll("['\"‘’”“·《≪≫》]", "");
     }
 
+    public static int countCharInStr(String str, char ch) {
+        int count = 0;
+        for (int i = 0; i < str.length(); i++) {
+            if (str.charAt(i) == ch)
+                count++;
+        }
+        return count;
+    }
 }
