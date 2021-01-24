@@ -4,6 +4,7 @@ import dto.CommonInfo;
 import dto.Congress;
 import org.apache.commons.math3.util.Pair;
 import org.openqa.selenium.By;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -18,57 +19,40 @@ import static util.ScrapUtil.rearrangeAbnormalSubtitle;
 import static util.ScrapUtil.removeBrackets;
 
 public class CongressScraper {
-
-//    public static final String CONGRESS_URL = "https://dl.nanet.go.kr/search/searchInnerList.do";
     public static final String CONGRESS_URL = "https://dl.nanet.go.kr/";
     public static final String ORGAN_NAME = "국회도서관";
     public static final double JACCARD_STANDARD = 0.60;
 
-    public static String queryPretreatment(String paperName) {
-        String query = rearrangeAbnormalSubtitle(paperName);
-        query = removeBrackets(query);
-        query = ScrapUtil.removeStringToString(query, "≪", "≫");
-        query = query.replaceAll("[,?&-]", "");
-        return query;
-    }
-
     public static Pair<Congress, CommonInfo> scrap(ChromeDriver driver, String controlCode, String paperName) {
-        if (controlCode == null || controlCode.equals("")) return null;
-        List<String> queryList = new ArrayList<>();
-        queryList.add(controlCode);
-        queryList.add(paperName.trim());
-
-        String trimmedQuery = queryPretreatment(paperName);
-        queryList.add(trimmedQuery);
-
-        addSubtitleAndSubLang(queryList, trimmedQuery);
-
+        if (controlCode == null || controlCode.equals("")) {
+            return null;
+        }
+        List<String> queryList = createQueryList(paperName, controlCode);
         List<Pair<Congress, CommonInfo>> matchedList = new ArrayList<>();
 
         for (String query : queryList) {
             try {
                 driver.get(CONGRESS_URL);
             } catch (WebDriverException e) {
-                Congress timeout = new Congress(ORGAN_NAME);
-                timeout.setControlCode(controlCode);
-                timeout.setRemark("크롤링 라이브러리 연결 실패");
-                return Pair.create(timeout, new CommonInfo());
+                e.printStackTrace();
+                throw new TimeoutException();
             }
 
             WebElement searchInput = driver.findElementByCssSelector("input#searchQuery");
             searchInput.sendKeys(query);
-//            WebElement searchBtn = driver.findElementByCssSelector("input#searchBtn");
             WebElement searchBtn = driver.findElementByCssSelector("input[type='submit']");
             searchBtn.click();
 
-            if (ScrapUtil.isExist(driver.findElementsByCssSelector("li.none")))
+            if (ScrapUtil.isExist(driver.findElementsByCssSelector("li.none"))) {
                 continue;
+            }
 
             String type = new WebDriverWait(driver, 3)
                     .until(ExpectedConditions.elementToBeClickable(By.cssSelector("ul.list li:first-child ul li:first-child"))).getText();
 
-            if (!type.contains("논문"))
+            if (!type.contains("논문")) {
                 continue;
+            }
 
             new WebDriverWait(driver, 3)
                     .until(ExpectedConditions.elementToBeClickable(By.cssSelector("ul.list li:nth-child(1) a"))).click();
@@ -76,8 +60,8 @@ public class CongressScraper {
             WebElement titleSpan = driver.findElementByCssSelector("div.searchDetail div.detailContent dl#DP_TITLE_FULL dd span.iBold");
 
             if (!query.equals(controlCode)) {
-                double jaccard = getJaccard(query, titleSpan);
-                if (jaccard < JACCARD_STANDARD) continue;
+                double similarity = getQuerySimilarity(query, titleSpan);
+                if (similarity < JACCARD_STANDARD) continue;
             }
 
             Congress congress = new Congress(ORGAN_NAME);
@@ -137,6 +121,26 @@ public class CongressScraper {
         }
 
         return matchedList.get(0);
+    }
+
+    private static List<String> createQueryList(String paperName, String controlCode) {
+        List<String> queryList = new ArrayList<>();
+        queryList.add(controlCode);
+        queryList.add(paperName.trim());
+
+        String trimmedQuery = queryPretreatment(paperName);
+        queryList.add(trimmedQuery);
+
+        addSubtitleAndSubLang(queryList, trimmedQuery);
+        return queryList;
+    }
+
+    public static String queryPretreatment(String paperName) {
+        String query = rearrangeAbnormalSubtitle(paperName);
+        query = removeBrackets(query);
+        query = ScrapUtil.removeStringToString(query, "≪", "≫");
+        query = query.replaceAll("[,?&-]", "");
+        return query;
     }
 
     private static void addSubtitleAndSubLang(List<String> list, String query) {
@@ -202,7 +206,7 @@ public class CongressScraper {
         return false;
     }
 
-    private static double getJaccard(String query, WebElement titleElement) {
+    private static double getQuerySimilarity(String query, WebElement titleElement) {
         String text = titleElement.getText();
         text = text.substring(0, text.lastIndexOf("/"));
 

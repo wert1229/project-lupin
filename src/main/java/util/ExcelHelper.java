@@ -1,15 +1,13 @@
-import dto.Keris;
+package util;
+
 import dto.Paper;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import util.ScrapUtil;
+import scraper.ScrapJob;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 
 public class ExcelHelper {
     public static final int EXCEL_HEADER_OFFSET = 2;
@@ -20,8 +18,9 @@ public class ExcelHelper {
     private CellStyle emptyHighlight;
 
     public Workbook getExcelData(String fileName) {
-        InputStream is = getClass().getResourceAsStream(fileName);
+        File file = new File(ScrapJob.RESOURCE_DIRECTORY + fileName);
         try {
+            InputStream is = new FileInputStream(file);
             return new XSSFWorkbook(is);
         } catch (IOException e) {
             return null;
@@ -41,7 +40,7 @@ public class ExcelHelper {
         System.out.println(bundleCount);
 
         for (int i = 0; i < bundleCount; i++) {
-            Workbook excel = getExcelData(Scraper.RESULT_FILE_NAME + i + ".xlsx");
+            Workbook excel = getExcelData(ScrapJob.RESULT_FILE_NAME + i + ".xlsx");
             appendExcelData(sheet, excel);
         }
 
@@ -144,7 +143,7 @@ public class ExcelHelper {
     }
 
     public void saveExcel(Workbook result, String fileName) throws IOException {
-        File file = new File(Scraper.RESOURCE_DIRECTORY + fileName);
+        File file = new File(ScrapJob.RESOURCE_DIRECTORY + fileName);
         FileOutputStream fos = new FileOutputStream(file);
         result.write(fos);
     }

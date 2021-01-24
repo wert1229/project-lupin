@@ -1,28 +1,25 @@
+package scraper;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dto.*;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.util.Pair;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.openqa.selenium.ElementNotInteractableException;
-import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.support.ui.FluentWait;
-import scraper.CentralLibScraper;
-import scraper.CongressScraper;
-import scraper.KerisScraper;
+import util.ExcelHelper;
 import util.Selenium;
 
 import java.io.File;
 import java.io.IOException;
 import java.text.DecimalFormat;
-import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
-public class Scraper {
+public class ScrapJob {
     public static final int ID_ROW_INDEX = 1;
     public static final int NAME_ROW_INDEX = 2;
     public static final int AUTHOR_ROW_INDEX = 3;
@@ -32,86 +29,57 @@ public class Scraper {
 
     public static final String RESOURCE_DIRECTORY = "/Users/kdpark/Documents/side_project/seojae/java_ver/src/main/resources/";
     public static final String RESULT_FILE_NAME = "result";
-    public static final String ORIGIN_FILE_NAME = "data.xlsx";
 
+    private final ChromeDriver driver;
     private final ObjectMapper mapper;
     private final ExcelHelper excelHelper;
+    private final Workbook resultExcel;
+    private final Sheet resultSheet;
 
-    public Scraper() {
+    private int index;
+    private List<Row> rows;
+
+    public ScrapJob(int index, List<Row> rows) {
+        this.index = index;
+        this.rows = rows;
+
+        this.driver = Selenium.getInstance();
         this.mapper = new ObjectMapper();
         this.excelHelper = new ExcelHelper();
-    }
-
-    public void start(int startRowNum, int endRowNum, int bundleSize) {
-        Workbook excel = excelHelper.getExcelData(ORIGIN_FILE_NAME);
-        if (excel == null) return;
-
-        Sheet sheet = excel.getSheetAt(0);
-        int lastRowNum = sheet.getLastRowNum();
-        if (startRowNum > endRowNum || startRowNum - 1 > lastRowNum || endRowNum - 1 > lastRowNum)
-            return;
-
-        int bundleCount = (endRowNum - startRowNum + 1) / bundleSize;
-        if ((endRowNum - startRowNum + 1) % bundleSize != 0)
-            bundleCount++;
-
-        List<List<Row>> bundles = new ArrayList<>();
-
-        for (int i = 0; i < bundleCount; i++) {
-            bundles.add(new ArrayList<>());
-        }
-
-        System.out.printf("rowCount: %d, bundleSize: %d,bundleCount: %d%n", endRowNum - startRowNum + 1, bundleSize, bundleCount);
-
-        int bundleIndex = 0;
-        for (int i = startRowNum - 1; i < endRowNum; i++) {
-            Row row = sheet.getRow(i);
-            bundles.get(bundleIndex).add(row);
-            if (bundles.get(bundleIndex).size() == bundleSize)
-                bundleIndex++;
-        }
-
-        for (int i = 0; i < bundles.size(); i++) {
-            int finalI = i;
-            new Thread(() -> {
-                try {
-                    start(bundles.get(finalI), finalI);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }).start();
-        }
-    }
-
-    private void start(List<Row> rows, int fileIndex) throws IOException {
-        List<Paper> list = new ArrayList<>();
-
-        Workbook resultExcel = new XSSFWorkbook();
-        Sheet resultSheet = resultExcel.createSheet("시트1");
+        this.resultExcel = new XSSFWorkbook();
+        this.resultSheet = resultExcel.createSheet("시트1");
         excelHelper.createExcelHeaders(resultSheet);
+    }
 
-        ChromeDriver driver = Selenium.newInstance();
+    public void start() {
+        new Thread(() -> {
+            try {
+                scrap();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
+    private void scrap() throws IOException {
+        List<Paper> list = new ArrayList<>();
 
         for (int i = 0; i < rows.size(); i++) {
             Row row  = rows.get(i);
-            if (row == null || row.getCell(NAME_ROW_INDEX) == null) continue;
+            if (row == null || row.getCell(NAME_ROW_INDEX) == null) {
+                continue;
+            }
 
             int id = (int) row.getCell(ID_ROW_INDEX).getNumericCellValue();
             String paperName = row.getCell(NAME_ROW_INDEX).getStringCellValue();
             String author = row.getCell(AUTHOR_ROW_INDEX).getStringCellValue();
             String claimCode = row.getCell(CLAIM_CODE_ROW_INDEX).getStringCellValue();
             String controlCode = row.getCell(CONTROL_CODE_ROW_INDEX).getStringCellValue();
+            String registerCode = getRegisterCode(row);
 
-            Cell registerCodeCell = row.getCell(REGISTER_CODE_ROW_INDEX);
-            String registerCode = "";
-            if (registerCodeCell.getCellType() == CellType.STRING) {
-                registerCode = registerCodeCell.getStringCellValue();
-            } else {
-                registerCode = new DecimalFormat("0.#").format(registerCodeCell.getNumericCellValue()).trim();
-                registerCode = registerCode.equals("0") ? "" : registerCode;
+            if (StringUtils.isBlank(paperName)) {
+                continue;
             }
-
-            if (paperName == null || paperName.equals("")) continue;
 
             System.out.printf("%d : %d of %d : %s%n", id, i + 1, rows.size(), paperName);
 
@@ -133,10 +101,7 @@ public class Scraper {
             congressPair.getFirst().setClaimCode(claimCode);
             congressPair.getFirst().setRegisterCode(registerCode);
 
-            String congressPaperName = null;
-            if (congressPair.getSecond().getFullName() != null) {
-                congressPaperName = congressPair.getSecond().getFullName();
-            }
+            String congressPaperName = congressPair.getSecond().getFullName() != null ? congressPair.getSecond().getFullName(): null;
 
             // Riss
             Pair<Keris, CommonInfo> kerisPair = null;
@@ -175,29 +140,43 @@ public class Scraper {
             excelHelper.writeToExcel(resultSheet, i, paper);
 
             if (i % 10 == 0) {
-                mapper.writerWithDefaultPrettyPrinter()
-                        .writeValue(new File(RESOURCE_DIRECTORY + RESULT_FILE_NAME + fileIndex + ".json"), list);
-                excelHelper.saveExcel(resultExcel, RESULT_FILE_NAME + fileIndex + ".xlsx");
+                saveExcelAndJson(list);
             }
         }
 
         if (list.size() > 0) {
-            mapper.writerWithDefaultPrettyPrinter()
-                    .writeValue(new File(RESOURCE_DIRECTORY + RESULT_FILE_NAME + fileIndex + ".json"), list);
-            excelHelper.saveExcel(resultExcel, RESULT_FILE_NAME + fileIndex + ".xlsx");
+            saveExcelAndJson(list);
         }
 
         driver.quit();
     }
 
+    private void saveExcelAndJson(List<Paper> list) throws IOException {
+        mapper.writerWithDefaultPrettyPrinter()
+                .writeValue(new File(RESOURCE_DIRECTORY + RESULT_FILE_NAME + this.index + ".json"), list);
+        excelHelper.saveExcel(resultExcel, RESULT_FILE_NAME + this.index + ".xlsx");
+    }
+
+    private String getRegisterCode(Row row) {
+        Cell registerCodeCell = row.getCell(REGISTER_CODE_ROW_INDEX);
+        String registerCode = "";
+        if (registerCodeCell.getCellType() == CellType.STRING) {
+            registerCode = registerCodeCell.getStringCellValue();
+        } else {
+            registerCode = new DecimalFormat("0.#").format(registerCodeCell.getNumericCellValue()).trim();
+            registerCode = registerCode.equals("0") ? "" : registerCode;
+        }
+        return  registerCode;
+    }
+
     private CommonInfo createInfo(CommonInfo congress, CommonInfo keris) {
         CommonInfo info = new CommonInfo();
-        info.setFullName(congress.getFullName() != null && !congress.getFullName().equals("") ? congress.getFullName() : keris.getFullName());
-        info.setMajor(congress.getMajor() != null && !congress.getMajor().equals("") ? congress.getMajor() : keris.getMajor());
-        info.setProfessor(congress.getProfessor() != null && !congress.getProfessor().equals("") ? congress.getProfessor() : keris.getProfessor());
-        info.setSize(congress.getSize() != null && !congress.getSize().equals("") ? congress.getSize() : keris.getSize());
-        info.setPage(congress.getPage() != null && !congress.getPage().equals("") ? congress.getPage() : keris.getPage());
-        info.setDegree(congress.getDegree() != null && !congress.getDegree().equals("") ? congress.getDegree() : keris.getDegree());
+        info.setFullName(!StringUtils.isBlank(congress.getFullName()) ? congress.getFullName() : keris.getFullName());
+        info.setMajor(!StringUtils.isBlank(congress.getMajor()) ? congress.getMajor() : keris.getMajor());
+        info.setProfessor(!StringUtils.isBlank(congress.getProfessor()) ? congress.getProfessor() : keris.getProfessor());
+        info.setSize(!StringUtils.isBlank(congress.getSize()) ? congress.getSize() : keris.getSize());
+        info.setPage(!StringUtils.isBlank(congress.getPage()) ? congress.getPage() : keris.getPage());
+        info.setDegree(!StringUtils.isBlank(congress.getDegree()) ? congress.getDegree() : keris.getDegree());
         return info;
     }
 }

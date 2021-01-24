@@ -25,27 +25,12 @@ public class KerisScraper {
             "&isFDetailSearch=N&pageNumber=1&resultKeyword=&fsearchSort=&fsearchOrder=&limiterList=&limiterListText=" +
             "&facetList=&facetListText=&fsearchDB=&icate=bib_t&colName=bib_t&pageScale=10&isTab=Y&regnm=&dorg_storage=" +
             "&language=&language_code=&clickKeyword=&relationKeyword=&query=";
-
     public static final String ORGAN_NAME = "KERIS";
     public static final double JACCARD_STANDARD = 0.60;
 
-    public static String queryPretreatment(String paperName) {
-        return rearrangeAbnormalSubtitle(paperName);
-    }
-
     public static Pair<Keris, CommonInfo> scrap(ChromeDriver driver, String originPaperName, String congressPaperName, String excelAuthor) {
         String paperName = congressPaperName != null ? congressPaperName : originPaperName;
-        List<String> queryList = new ArrayList<>();
-        if (congressPaperName != null)
-            queryList.add(rearrangeAbnormalSubtitle(originPaperName));
-
-        queryList.add(rearrangeAbnormalSubtitle(paperName.trim()));
-
-        String trimmedQuery = queryPretreatment(paperName);
-        queryList.add(trimmedQuery);
-
-        addSubtitleAndSubLang(queryList, trimmedQuery);
-
+        List<String> queryList = createQueryList(paperName, originPaperName);
         List<Pair<Keris, CommonInfo>> matchedList = new ArrayList<>();
 
         for (String query : queryList) {
@@ -57,8 +42,9 @@ public class KerisScraper {
             }
 
             List<WebElement> noResult = driver.findElementsByCssSelector("div.contentInner div.srchResultW.noList");
-
-            if (ScrapUtil.isExist(noResult)) continue;
+            if (ScrapUtil.isExist(noResult)) {
+                continue;
+            }
 
             List<WebElement> rows = driver.findElementsByCssSelector("div.contentInner div.srchResultListW div.cont");
             rows = rows.subList(0, Math.min(rows.size(), 3));
@@ -81,12 +67,14 @@ public class KerisScraper {
 
                 WebElement titleElement = driver.findElementByCssSelector("div.thesisInfo div.thesisInfoTop h3");
 
-                double jaccard = getJaccard(ScrapUtil.removeQuotes(query), ScrapUtil.removeQuotes(titleElement.getText().trim()));
-                if ((isSameAuthor && jaccard < JACCARD_STANDARD) || (!isSameAuthor && jaccard < 0.7)) continue;
+                double similarity = getQuerySimilarity(ScrapUtil.removeQuotes(query), ScrapUtil.removeQuotes(titleElement.getText().trim()));
+                if ((isSameAuthor && similarity < JACCARD_STANDARD) || (!isSameAuthor && similarity < 0.7)) {
+                    continue;
+                }
 
                 Keris keris = new Keris(ORGAN_NAME);
                 keris.setQuery(query);
-                keris.setSimilarity(jaccard);
+                keris.setSimilarity(similarity);
 
                 if (!isSameAuthor) {
                     keris.setAuthorDiff(excelAuthor + " = " + author);
@@ -108,44 +96,33 @@ public class KerisScraper {
                         driver.navigate().to(digitalUrl);
 
                         try {
-                            WebElement formElement = new WebDriverWait(driver, 15)
+                            new WebDriverWait(driver, 15)
                                     .until(ExpectedConditions.elementToBeClickable(By.ByCssSelector.cssSelector("embed")));
                         } catch (TimeoutException e1) {
                             List<WebElement> iframe = driver.findElementsByCssSelector("iframe#download_frm");
-                            if (ScrapUtil.isExist(iframe)) {
-                                driver.switchTo().frame("download_frm");
-                                WebElement button = new WebDriverWait(driver, 3)
-                                        .until(ExpectedConditions.elementToBeClickable(By.ByCssSelector.cssSelector("div#main-content a")));
-                                button.click();
-                                String href = button.getAttribute("href");
-                                String pdfName = href.substring(href.lastIndexOf("/") + 1);
-                                keris.setFileName(pdfName);
-                            } else {
-                                List<WebElement> mac = driver.findElementsByCssSelector("body.div-area.mac");
-                                if (!ScrapUtil.isExist(mac)) {
-                                    throw new TimeoutException("Keris PDF Download Timeout");
-                                }
+                            List<WebElement> mac = driver.findElementsByCssSelector("body.div-area.mac");
+                            if (!ScrapUtil.isExist(iframe) && !ScrapUtil.isExist(mac)) {
+                                throw new TimeoutException("Keris PDF Timeout");
                             }
                         } catch (UnhandledAlertException e2) {
                             return Pair.create(getFailObject("원문 제공 불가"), commonInfo);
                         }
                     } else {
-                        keris.setDigital(false);
-
                         List<WebElement> exception = driver.findElementsByCssSelector("div.thesisInfo ul li.on span font");
-                        if (ScrapUtil.isExist(exception))
+                        if (ScrapUtil.isExist(exception)) {
                             keris.setServiceMethod(exception.get(0).getText());
-                        else
+                        } else {
                             keris.setServiceMethod("이용자 신청 후 이용 가능");
+                        }
                     }
-                } else {
-                    keris.setDigital(false);
                 }
 
                 matchedList.add(Pair.create(keris, commonInfo));
             }
 
-            if (matchedList.size() > 0) break;
+            if (matchedList.size() > 0) {
+                break;
+            }
         }
 
         if (matchedList.size() == 0) {
@@ -156,6 +133,25 @@ public class KerisScraper {
 
         matchedList.sort((o1, o2) -> Double.compare(o2.getFirst().getSimilarity(), o1.getFirst().getSimilarity()));
         return matchedList.get(0);
+    }
+
+    private static List<String> createQueryList(String paperName, String originPaperName) {
+        List<String> queryList = new ArrayList<>();
+        if (!paperName.equals(originPaperName)) {
+            queryList.add(rearrangeAbnormalSubtitle(originPaperName));
+        }
+
+        queryList.add(rearrangeAbnormalSubtitle(paperName.trim()));
+
+        String trimmedQuery = queryPretreatment(paperName);
+        queryList.add(trimmedQuery);
+
+        addSubtitleAndSubLang(queryList, trimmedQuery);
+        return queryList;
+    }
+
+    public static String queryPretreatment(String paperName) {
+        return rearrangeAbnormalSubtitle(paperName);
     }
 
     private static String digitalUrl(WebElement form) {
@@ -169,11 +165,10 @@ public class KerisScraper {
                         param + "=" + form.findElement(By.ByCssSelector.cssSelector(String.format("input[name='%s']", param)))
                                 .getAttribute("value"))
                 .collect(Collectors.joining("&"));
-
         return baseUrl + urlParam;
     }
 
-    private static double getJaccard(String query, String text) {
+    private static double getQuerySimilarity(String query, String text) {
         double result = 0.0;
 
         double fullMatch = similar(query, text);
@@ -218,11 +213,6 @@ public class KerisScraper {
         return result;
     }
 
-    private static boolean isSameAuthor(String author, WebElement publishInfo) {
-        String text = publishInfo.getText().trim();
-        return text.equalsIgnoreCase(author.trim());
-    }
-
     private static void addSubtitleAndSubLang(List<String> list, String query) {
         if (query.contains("=")) {
             String[] split = query.split("=");
@@ -246,44 +236,62 @@ public class KerisScraper {
             try {
                 String column = info.findElement(By.ByCssSelector.cssSelector("span.strong")).getAttribute("innerHTML");
                 if (column.contains("형태")) {
-                    String shape = info.findElement(By.ByCssSelector.cssSelector("div p")).getText();
-                    if (shape.contains(";")) {
-                        String[] shapes = shape.split(";");
-                        if (shapes.length < 2) {
-                            if (shapes[0].contains("cm")) {
-                                commonInfo.setSize(shapes[0]);
-                            } else {
-                                commonInfo.setPage(shapes[0]);
-                            }
-                        } else {
-                            String page = shapes[0].trim();
-                            if (!page.equals("") && !page.contains("p"))
-                                page += " p.";
-                            commonInfo.setPage(page);
-                            commonInfo.setSize(shapes[1]);
-                        }
-                    } else if (shape.contains("p.")) {
-                        String[] shapes = shape.split("p.");
-                        commonInfo.setPage(shapes[0].trim() + " p.");
-                        commonInfo.setSize(shapes[1].trim());
-                    }
+                    setShapeInfo(commonInfo, info);
                 } else if (column.contains("학위논문")) {
-                    String text = info.findElement(By.ByCssSelector.cssSelector("div p")).getText();
-                    String degree = extractDegree(text);
-                    String major = extractMajor(text);
-                    commonInfo.setDegree(degree);
-                    commonInfo.setMajor(major);
+                    setDegreeInfo(commonInfo, info);
                 } else if (column.contains("일반주기")) {
-                    String text = info.findElement(By.ByCssSelector.cssSelector("div p")).getText();
-                    String[] split = text.split("\n");
-                    for (String s : split) {
-                        if (s.contains("지도") && s.split(":").length > 1)
-                            commonInfo.setProfessor(s.split(":")[1]);
-                    }
+                    setDetailInfo(commonInfo, info);
                 }
             } catch (NoSuchElementException ignored) {}
         }
         return commonInfo;
+    }
+
+    private static void setDetailInfo(CommonInfo commonInfo, WebElement info) {
+        String text = info.findElement(By.ByCssSelector.cssSelector("div p")).getText();
+        String[] split = text.split("\n");
+        for (String s : split) {
+            if (s.contains("지도") && s.split(":").length > 1){
+                commonInfo.setProfessor(s.split(":")[1]);
+            }
+        }
+    }
+
+    private static void setDegreeInfo(CommonInfo commonInfo, WebElement info) {
+        String text = info.findElement(By.ByCssSelector.cssSelector("div p")).getText();
+        String degree = extractDegree(text);
+        String major = extractMajor(text);
+        commonInfo.setDegree(degree);
+        commonInfo.setMajor(major);
+    }
+
+    private static void setShapeInfo(CommonInfo commonInfo, WebElement info) {
+        String shape = info.findElement(By.ByCssSelector.cssSelector("div p")).getText();
+        String page = "";
+        String size = "";
+        if (shape.contains(";")) {
+            String[] shapes = shape.split(";");
+            if (shapes.length < 2) {
+                if (shapes[0].contains("cm")) {
+                    size = shapes[0];
+                } else {
+                    page = shapes[0];
+                }
+            } else {
+                page = shapes[0].trim();
+                if (!page.equals("") && !page.contains("p")) {
+                    page += " p.";
+                }
+                size = shapes[1];
+            }
+        } else if (shape.contains("p.")) {
+            String[] shapes = shape.split("p.");
+            page = shapes[0].trim() + " p.";
+            size = shapes[1].trim();
+        }
+
+        commonInfo.setPage(page);
+        commonInfo.setSize(size);
     }
 
     private static String extractMajor(String text) {
@@ -314,7 +322,6 @@ public class KerisScraper {
         } else {
             return "";
         }
-
     }
 
     private static Keris getFailObject(String remark) {

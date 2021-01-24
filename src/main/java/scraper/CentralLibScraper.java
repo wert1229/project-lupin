@@ -1,6 +1,7 @@
 package scraper;
 
 import dto.CentralLib;
+import org.apache.commons.lang3.StringUtils;
 import org.openqa.selenium.By;
 import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriverException;
@@ -18,9 +19,150 @@ import static util.ScrapUtil.*;
 public class CentralLibScraper {
 
     public static final String CENTRAL_LIB_URL = "https://www.nl.go.kr/NL/contents/search.do?pageNum=1&pageSize=4&srchTarget=total&kwd=";
-
     public static final String ORGAN_NAME = "국립중앙도서관";
     public static final double JACCARD_STANDARD = 0.65;
+
+    public static CentralLib scrap(ChromeDriver driver, String originPaperName, String congressPaperName, String excelAuthor) {
+        String paperName = congressPaperName != null ? congressPaperName : originPaperName;
+        List<String> queryList = createQueryList(paperName, originPaperName);
+        List<CentralLib> matchedList = new ArrayList<>();
+
+        for (String query : queryList) {
+            try {
+                driver.get(CENTRAL_LIB_URL + query);
+            } catch (WebDriverException e) {
+                e.printStackTrace();
+                throw new TimeoutException();
+            }
+
+            List<WebElement> noResult = driver.findElementsByCssSelector("div.cont_wrap li.ucsrch9_item.no_cont");
+
+            if (isExist(noResult)) {
+                continue;
+            }
+
+            List<WebElement> rows = null;
+
+            List<WebElement> sections = driver.findElementsByCssSelector("div.section_cont_wrap div.section_cont");
+            for (WebElement section : sections) {
+                List<WebElement> h3 = section.findElements(By.ByCssSelector.cssSelector("div.cont_top h3"));
+                if (isExist(h3) && h3.get(0).getText().contains("논문")) {
+                    rows = section.findElements(By.ByCssSelector.cssSelector("div.cont_list div.row"));
+                    break;
+                }
+            }
+
+            if (rows == null) {
+                continue;
+            }
+
+            CentralLib centralLib = new CentralLib(ORGAN_NAME);
+            centralLib.setQuery(query);
+
+            boolean isDigitalMethodAdded = false;
+            String prevFullTitle = null;
+
+            rows = rows.subList(0, Math.min(rows.size(), 2));
+            for (WebElement row : rows) {
+                WebElement title = row.findElement(By.ByCssSelector.cssSelector("a.btn_layer.detail_btn_layer"));
+                title.click();
+
+                WebElement closeBtn = new WebDriverWait(driver, 20)
+                        .until(ExpectedConditions.elementToBeClickable(By.cssSelector("div#popDetailView div.layer_popup.detail_layer_popup div.popup_header button.btn_close")));
+
+                String fullName = driver.findElementByCssSelector("div#popDetailView h3.detail_tit").getText();
+                fullName = removeBigBrackets(fullName);
+                fullName = rearrangeAbnormalFullTitle(fullName);
+
+                double similarity = getQuerySimilarity(query, fullName);
+                similarity = Math.max(similarity, ScrapUtil.similar(paperName, fullName));
+
+                if (similarity < JACCARD_STANDARD) {
+                    closeBtn.click();
+                    continue;
+                }
+
+                if (prevFullTitle == null) {
+                    prevFullTitle = fullName;
+                } else {
+                    double rowTitleSimilar = getRowTitleMatchRatio(row, query);
+                    if (rowTitleSimilar < 0.70 && getQuerySimilarity(prevFullTitle, fullName) < 0.8) {
+                        closeBtn.click();
+                        continue;
+                    }
+                }
+
+                List<WebElement> tableInfos = driver.findElementsByCssSelector("div.table div.table_row span.cont");
+                String claimCode = tableInfos.size() > 6 ? tableInfos.get(6).getAttribute("innerHTML").trim() : "";
+
+                if (!StringUtils.isBlank(centralLib.getClaimCode()) && !claimCode.equals("")) {
+                    closeBtn.click();
+                    continue;
+                }
+
+                centralLib.setSimilarity(similarity);
+
+                String author = row.findElements(By.cssSelector("span.mr.txt_grey")).get(0).getText();
+                if (!author.trim().equals(excelAuthor.trim())) {
+                    centralLib.setAuthorDiff(excelAuthor + " = " + author);
+                }
+
+                if (!claimCode.equals("")) {
+                    centralLib.setOriginal(true);
+                    centralLib.setClaimCode(claimCode);
+                    String service = ScrapUtil.removeHtmlComment(tableInfos.get(8).getAttribute("innerHTML").trim());
+                    centralLib.setServiceMethod(centralLib.getServiceMethod() == null ? service : centralLib.getServiceMethod() + "/" + service);
+                }
+
+                List<WebElement> digitalBtn = row.findElements(By.ByCssSelector.cssSelector("span.row_btn_wrap a"));
+                if (isExist(digitalBtn)) {
+                    centralLib.setDigital(true);
+                    centralLib.setDigitalUrl(driver.getCurrentUrl());
+                    if (!isDigitalMethodAdded) {
+                        List<WebElement> infos = row.findElements(By.ByCssSelector.cssSelector("span span.comments.txt_black+*"));
+                        String service = getDigitalService(infos);
+                        centralLib.setServiceMethod(centralLib.getServiceMethod() == null ? service : service + "/" + centralLib.getServiceMethod());
+                        isDigitalMethodAdded = true;
+                    }
+                }
+
+                closeBtn.click();
+
+                if (!matchedList.contains(centralLib)){
+                    matchedList.add(centralLib);
+                }
+            }
+
+            if (matchedList.size() > 0) {
+                break;
+            }
+        }
+
+        if (matchedList.size() == 0) {
+            CentralLib noResult = new CentralLib(ORGAN_NAME);
+            noResult.setOriginal(null);
+            noResult.setDigital(null);
+            noResult.setRemark("일치하는 검색 결과 없음");
+            noResult.setServiceMethod("서비스 제공 불가");
+            return noResult;
+        }
+
+        return matchedList.get(0);
+    }
+
+    private static List<String> createQueryList(String paperName, String originPaperName) {
+        List<String> queryList = new ArrayList<>();
+        if (!paperName.equals(originPaperName))
+            queryList.add(rearrangeAbnormalSubtitle(originPaperName));
+
+        queryList.add(rearrangeAbnormalSubtitle(paperName.trim()));
+
+        String trimmedQuery = queryPretreatment(paperName);
+        queryList.add(trimmedQuery);
+
+        addSubtitleAndSubLang(queryList, trimmedQuery);
+        return queryList;
+    }
 
     public static String queryPretreatment(String paperName) {
         String query = rearrangeAbnormalSubtitle(paperName);
@@ -42,137 +184,6 @@ public class CentralLibScraper {
             }
         }
         return builder.toString();
-    }
-
-    public static CentralLib scrap(ChromeDriver driver, String originPaperName, String congressPaperName, String excelAuthor) {
-        String paperName = congressPaperName != null ? congressPaperName : originPaperName;
-        List<String> queryList = new ArrayList<>();
-        if (congressPaperName != null)
-            queryList.add(rearrangeAbnormalSubtitle(originPaperName));
-
-        queryList.add(rearrangeAbnormalSubtitle(paperName.trim()));
-
-        String trimmedQuery = queryPretreatment(paperName);
-        queryList.add(trimmedQuery);
-
-        addSubtitleAndSubLang(queryList, trimmedQuery);
-
-        List<CentralLib> matchedList = new ArrayList<>();
-
-        for (String query : queryList) {
-            try {
-                driver.get(CENTRAL_LIB_URL + query);
-            } catch (WebDriverException e) {
-                e.printStackTrace();
-                throw new TimeoutException();
-            }
-
-            List<WebElement> noResult = driver.findElementsByCssSelector("div.cont_wrap li.ucsrch9_item.no_cont");
-
-            if (isExist(noResult)) continue;
-
-            List<WebElement> sections = driver.findElementsByCssSelector("div.section_cont_wrap div.section_cont");
-
-            List<WebElement> rows = null;
-
-            for (WebElement section : sections) {
-                List<WebElement> h3 = section.findElements(By.ByCssSelector.cssSelector("div.cont_top h3"));
-                if (isExist(h3) && h3.get(0).getText().contains("논문"))
-                    rows = section.findElements(By.ByCssSelector.cssSelector("div.cont_list div.row"));
-            }
-
-            if (rows == null) continue;
-
-            CentralLib centralLib = new CentralLib(ORGAN_NAME);
-            centralLib.setQuery(query);
-
-            boolean isDigitalMethodAdded = false;
-            String prevFullTitle = null;
-
-            rows = rows.subList(0, Math.min(rows.size(), 2));
-            for (WebElement row : rows) {
-                WebElement title = row.findElement(By.ByCssSelector.cssSelector("a.btn_layer.detail_btn_layer"));
-                title.click();
-
-                WebElement closeBtn = new WebDriverWait(driver, 20)
-                        .until(ExpectedConditions.elementToBeClickable(By.cssSelector("div#popDetailView div.layer_popup.detail_layer_popup div.popup_header button.btn_close")));
-
-                String fullName = driver.findElementByCssSelector("div#popDetailView h3.detail_tit").getText();
-                fullName = removeBigBrackets(fullName);
-                fullName = rearrangeAbnormalFullTitle(fullName);
-                String author = row.findElements(By.cssSelector("span.mr.txt_grey")).get(0).getText();
-
-                double jaccard = getJaccard(query, fullName);
-                jaccard = Math.max(jaccard, ScrapUtil.similar(paperName, fullName));
-
-                if (jaccard < JACCARD_STANDARD) {
-                    closeBtn.click();
-                    continue;
-                }
-
-                if (prevFullTitle == null) {
-                    prevFullTitle = fullName;
-                } else {
-                    double rowTitleSimilar = getRowTitleMatchRatio(row, query);
-                    if (rowTitleSimilar < 0.70 && getJaccard(prevFullTitle, fullName) < 0.8) {
-                        closeBtn.click();
-                        continue;
-                    }
-                }
-
-                List<WebElement> tableInfos = driver.findElementsByCssSelector("div.table div.table_row span.cont");
-                String claimCode = tableInfos.size() > 6 ? tableInfos.get(6).getAttribute("innerHTML").trim() : "";
-
-                // TODO: 유사도 구분짓기
-                if (centralLib.getClaimCode() != null && !centralLib.getClaimCode().equals("") && !claimCode.equals("")) {
-                    closeBtn.click();
-                    continue;
-                }
-
-                centralLib.setSimilarity(jaccard);
-
-                if (!author.trim().equals(excelAuthor.trim())) {
-                    centralLib.setAuthorDiff(excelAuthor + " = " + author);
-                }
-
-                if (!claimCode.equals("")) {
-                    centralLib.setOriginal(true);
-                    centralLib.setClaimCode(claimCode);
-                    String service = ScrapUtil.removeHtmlComment(tableInfos.get(8).getAttribute("innerHTML").trim());
-                    centralLib.setServiceMethod(centralLib.getServiceMethod() == null ? service : centralLib.getServiceMethod() + "/" + service);
-                }
-
-                List<WebElement> digitalBtn = row.findElements(By.ByCssSelector.cssSelector("span.row_btn_wrap a"));
-                if (isExist(digitalBtn) ) {
-                    centralLib.setDigital(true);
-                    centralLib.setDigitalUrl(driver.getCurrentUrl());
-                    if (!isDigitalMethodAdded) {
-                        List<WebElement> infos = row.findElements(By.ByCssSelector.cssSelector("span span.comments.txt_black+*"));
-                        String service = getDigitalService(infos);
-                        centralLib.setServiceMethod(centralLib.getServiceMethod() == null ? service : service + "/" + centralLib.getServiceMethod());
-                        isDigitalMethodAdded = true;
-                    }
-                }
-
-                closeBtn.click();
-
-                if (!matchedList.contains(centralLib))
-                    matchedList.add(centralLib);
-            }
-
-            if (matchedList.size() > 0) break;
-        }
-
-        if (matchedList.size() == 0) {
-            CentralLib noResult = new CentralLib(ORGAN_NAME);
-            noResult.setOriginal(null);
-            noResult.setDigital(null);
-            noResult.setRemark("일치하는 검색 결과 없음");
-            noResult.setServiceMethod("서비스 제공 불가");
-            return noResult;
-        }
-
-        return matchedList.get(0);
     }
 
     private static String rearrangeAbnormalFullTitle(String fullTitle) {
@@ -219,7 +230,7 @@ public class CentralLibScraper {
         return result.toString().trim();
     }
 
-    private static double getJaccard(String query, String text) {
+    private static double getQuerySimilarity(String query, String text) {
         double result = 0.0;
 
         double fullMatch = similar(query, text);
@@ -248,12 +259,6 @@ public class CentralLibScraper {
             result = Math.max(result, Math.max(withoutSubLang, subLang));
             if (result > 0.9) return result;
         }
-
-//        if (!query.contains(":") && text.contains(":")) {
-//            double withoutSubtitle = jaccard(query, text.split(":")[0]);
-//            result = Math.max(result, withoutSubtitle);
-//            if (result > 0.9) return result;
-//        }
 
         if (query.contains(":") && !text.contains(":")) {
             double withoutSubtitle = similar(query.split(":")[0], text);
