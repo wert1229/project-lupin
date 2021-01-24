@@ -30,20 +30,20 @@ public class ScrapJob {
     public static final String RESOURCE_DIRECTORY = "/Users/kdpark/Documents/side_project/seojae/java_ver/src/main/resources/";
     public static final String RESULT_FILE_NAME = "result";
 
-    private final ChromeDriver driver;
     private final ObjectMapper mapper;
     private final ExcelHelper excelHelper;
     private final Workbook resultExcel;
     private final Sheet resultSheet;
 
-    private int index;
-    private List<Row> rows;
+    private final ChromeDriver driver;
+    private final int index;
+    private final List<Row> rows;
 
     public ScrapJob(int index, List<Row> rows) {
+        this.driver = Selenium.newInstance();
         this.index = index;
         this.rows = rows;
 
-        this.driver = Selenium.getInstance();
         this.mapper = new ObjectMapper();
         this.excelHelper = new ExcelHelper();
         this.resultExcel = new XSSFWorkbook();
@@ -51,17 +51,7 @@ public class ScrapJob {
         excelHelper.createExcelHeaders(resultSheet);
     }
 
-    public void start() {
-        new Thread(() -> {
-            try {
-                scrap();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }).start();
-    }
-
-    private void scrap() throws IOException {
+    public void scrap() throws IOException {
         List<Paper> list = new ArrayList<>();
 
         for (int i = 0; i < rows.size(); i++) {
@@ -92,7 +82,7 @@ public class ScrapJob {
                 try {
                     congressPair = CongressScraper.scrap(driver, controlCode, paperName);
                     tried = 0;
-                } catch (NoSuchElementException e) {
+                } catch (NoSuchElementException | TimeoutException e) {
                     System.out.println("congress NoSuchElement retried "+ tried +" times : " + paperName);
                     System.out.println(e.getMessage());
                     tried++;
@@ -160,13 +150,16 @@ public class ScrapJob {
     private String getRegisterCode(Row row) {
         Cell registerCodeCell = row.getCell(REGISTER_CODE_ROW_INDEX);
         String registerCode = "";
+        if (registerCodeCell == null) {
+            return registerCode;
+        }
         if (registerCodeCell.getCellType() == CellType.STRING) {
             registerCode = registerCodeCell.getStringCellValue();
         } else {
             registerCode = new DecimalFormat("0.#").format(registerCodeCell.getNumericCellValue()).trim();
             registerCode = registerCode.equals("0") ? "" : registerCode;
         }
-        return  registerCode;
+        return registerCode;
     }
 
     private CommonInfo createInfo(CommonInfo congress, CommonInfo keris) {

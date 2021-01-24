@@ -5,6 +5,7 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import scraper.ScrapJob;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -65,7 +66,14 @@ public class Scraper {
 
     private void createAndRunThread(List<List<Row>> bundles) {
         for (int i = 0; i < bundles.size(); i++) {
-            new ScrapJob(i, bundles.get(i)).start();
+            int finalI = i;
+            new Thread(() -> {
+                try {
+                    new ScrapJob(finalI, bundles.get(finalI)).scrap();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }).start();
         }
     }
 }
