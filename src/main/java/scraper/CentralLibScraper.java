@@ -111,7 +111,7 @@ public class CentralLibScraper {
                     centralLib.setOriginal(true);
                     centralLib.setClaimCode(claimCode);
                     String service = ScrapUtil.removeHtmlComment(tableInfos.get(8).getAttribute("innerHTML").trim());
-                    centralLib.setServiceMethod(centralLib.getServiceMethod() == null ? service : centralLib.getServiceMethod() + "/" + service);
+                    centralLib.setServiceMethod(centralLib.getServiceMethod() == null ? service : service + "/" + centralLib.getServiceMethod());
                 }
 
                 List<WebElement> digitalBtn = row.findElements(By.ByCssSelector.cssSelector("span.row_btn_wrap a"));
@@ -121,7 +121,7 @@ public class CentralLibScraper {
                     if (!isDigitalMethodAdded) {
                         List<WebElement> infos = row.findElements(By.ByCssSelector.cssSelector("span span.comments.txt_black+*"));
                         String service = getDigitalService(infos);
-                        centralLib.setServiceMethod(centralLib.getServiceMethod() == null ? service : service + "/" + centralLib.getServiceMethod());
+                        centralLib.setServiceMethod(centralLib.getServiceMethod() == null ? service : centralLib.getServiceMethod() + "/" + service);
                         isDigitalMethodAdded = true;
                     }
                 }
